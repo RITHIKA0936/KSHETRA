@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}KSHETRA — Smart Agricultural Platform{% endblock %}
+
+{% block content %}
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+
+      <div class="hero-text">
+        <div class="hero-eyebrow">🌱 Karnataka Agricultural Platform</div>
+        <h1>
+          Grow Smart.<br>Sell at the<br><em>Best Mandi.</em>
+        </h1>
+        <p>
+          KSHETRA finds you the highest-profit mandi every day
+          — factoring in live prices, road conditions, weather,
+          and transport costs so you never leave money on the table.
+        </p>
+        <div class="hero-btns">
+          <a href="{{ url_for('register_farmer') }}" class="btn btn-white btn-lg">
+            <i class="bi bi-person-plus"></i> Register as Farmer
+          </a>
+          <a href="{{ url_for('login_farmer') }}" class="btn btn-outline btn-lg" style="border-color:rgba(255,255,255,.5);color:#fff;">
+            <i class="bi bi-box-arrow-in-right"></i> Farmer Login
+          </a>
+        </div>
+        <p style="margin-top:16px;font-size:.82rem;color:rgba(255,255,255,.5);">
+          Are you a mandi agent?
+          <a href="{{ url_for('login_mandi') }}" style="color:#a5d6a7;font-weight:600;">Login here →</a>
+        </p>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-card">
+          <div class="hero-card-num">7</div>
+          <div class="hero-card-label">Active Mandis</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-num">17</div>
+          <div class="hero-card-label">Crop Types</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-num">30</div>
+          <div class="hero-card-label">Days Price History</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-num">8</div>
+          <div class="hero-card-label">Districts Covered</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="section" style="background:var(--bg);">
+  <div class="container">
+    <div class="section-head center">
+      <div class="section-label">How it works</div>
+      <h2 class="section-title">Three steps from farm to best market</h2>
+    </div>
+
+    <div class="grid-3" style="gap:32px;">
+      <div style="text-align:center;padding:32px 24px;">
+        <div style="width:72px;height:72px;background:var(--green-muted);border-radius:50%;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:1.8rem;color:var(--green);margin:0 auto 20px;">
+          <i class="bi bi-person-plus"></i>
+        </div>
+        <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                    color:var(--green);margin-bottom:8px;">Step 1</div>
+        <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:10px;">Register & Add Your Crops</h3>
+        <p style="font-size:.9rem;color:var(--muted);">
+          Create a free account, enter your crops, quantities, and cost of production.
+        </p>
+      </div>
+
+      <div style="text-align:center;padding:32px 24px;">
+        <div style="width:72px;height:72px;background:var(--amber-muted);border-radius:50%;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:1.8rem;color:var(--amber);margin:0 auto 20px;">
+          <i class="bi bi-stars"></i>
+        </div>
+        <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                    color:var(--amber);margin-bottom:8px;">Step 2</div>
+        <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:10px;">Get Smart Recommendations</h3>
+        <p style="font-size:.9rem;color:var(--muted);">
+          KSHETRA scores every mandi using price, distance, weather, and live disruption data.
+        </p>
+      </div>
+
+      <div style="text-align:center;padding:32px 24px;">
+        <div style="width:72px;height:72px;background:var(--blue-muted);border-radius:50%;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:1.8rem;color:var(--blue);margin:0 auto 20px;">
+          <i class="bi bi-currency-rupee"></i>
+        </div>
+        <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                    color:var(--blue);margin-bottom:8px;">Step 3</div>
+        <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:10px;">Sell & Maximise Profit</h3>
+        <p style="font-size:.9rem;color:var(--muted);">
+          Pre-book your mandi slot, receive SMS confirmation, and earn more per ton.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-label">Platform Features</div>
+      <h2 class="section-title">Everything you need to sell smarter</h2>
+      <p class="section-sub">From satellite crop health to live route alerts — KSHETRA covers the full supply chain.</p>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feat-icon green"><i class="bi bi-stars"></i></div>
+        <h4>Mandi Recommendations</h4>
+        <p>Algorithm combines price, distance, weather risk, and disruptions to rank every mandi.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon amber"><i class="bi bi-graph-up-arrow"></i></div>
+        <h4>Live Price Tracking</h4>
+        <p>Mandi agents post daily prices. View 30-day trend charts for any crop at any market.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon blue"><i class="bi bi-cloud-rain"></i></div>
+        <h4>Weather Intelligence</h4>
+        <p>Open-Meteo integration. Rain probability above 60% automatically reduces route score.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon amber"><i class="bi bi-truck"></i></div>
+        <h4>Transport Calculator</h4>
+        <p>Calculate exact delivery cost by mode — bullock cart, tractor, or truck — per route.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+        <h4>Route Disruption Alerts</h4>
+        <p>Mandi agents flag floods, road blocks, and strikes in real time. Routes are penalised.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon green"><i class="bi bi-calendar-check"></i></div>
+        <h4>Pre-Booking & Bulk Sell</h4>
+        <p>Express sell intent before harvest. Mandi agents see the full incoming supply pipeline.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon blue"><i class="bi bi-satellite"></i></div>
+        <h4>NDVI Crop Health</h4>
+        <p>AgroMonitoring satellite data gives a health score for your district's farmland.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feat-icon amber"><i class="bi bi-bell"></i></div>
+        <h4>SMS Notifications</h4>
+        <p>Receive the top mandi recommendation directly as an SMS via Fast2SMS.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== MARKET SNAPSHOT ===== -->
+<section class="section" style="background:var(--bg);">
+  <div class="container">
+    <div class="section-head flex-between flex-wrap" style="gap:16px;margin-bottom:32px;">
+      <div>
+        <div class="section-label">Live Market</div>
+        <h2 class="section-title" style="margin-bottom:0;">Today's Price Snapshot</h2>
+      </div>
+      <a href="{{ url_for('view_prices') }}" class="btn btn-outline">
+        View All Prices <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Crop</th>
+            <th>Mandi</th>
+            <th>Location</th>
+            <th>Price (₹/ton)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set shown = namespace(count=0) %}
+          {% for crop_name in ['Tomato','Rose','Marigold','Carrot','Ragi','Onion'] %}
+            <tr>
+              <td><span class="tag tag-green">{{ crop_name }}</span></td>
+              <td style="font-weight:600;">Kolar Mandi</td>
+              <td style="color:var(--muted);">Kolar</td>
+              <td class="price-chip">
+                {% if crop_name == 'Tomato' %}₹12,500
+                {% elif crop_name == 'Rose' %}₹58,000
+                {% elif crop_name == 'Marigold' %}₹24,500
+                {% elif crop_name == 'Carrot' %}₹17,500
+                {% elif crop_name == 'Ragi' %}₹30,000
+                {% else %}₹14,500{% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('view_prices') }}" class="btn btn-outline btn-sm">Details</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ROUTE ALERTS ===== -->
+<section class="section-sm">
+  <div class="container">
+    <div class="flex-between flex-wrap" style="gap:16px;margin-bottom:24px;">
+      <div>
+        <div class="section-label">Current Alerts</div>
+        <h2 class="section-title" style="font-size:1.5rem;margin-bottom:0;">Active Route Disruptions</h2>
+      </div>
+      <a href="{{ url_for('view_disruptions') }}" class="btn btn-outline">
+        View All Alerts <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+
+    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:12px;padding:20px 24px;">
+      <p style="font-size:.9rem;color:#bf360c;">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        Visit the <a href="{{ url_for('view_disruptions') }}" style="color:var(--amber);font-weight:600;">Alerts page</a>
+        for live disruption information on routes across Karnataka.
+        Disrupted routes are automatically penalised in mandi recommendations.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="section" style="background:linear-gradient(135deg,#1b5e20,#2e7d32);">
+  <div class="container" style="text-align:center;">
+    <h2 style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#fff;margin-bottom:12px;">
+      Ready to get the best price for your crop?
+    </h2>
+    <p style="color:rgba(255,255,255,.75);font-size:1rem;margin-bottom:32px;max-width:480px;margin-left:auto;margin-right:auto;">
+      Join Karnataka farmers already using KSHETRA to find better markets every day.
+    </p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="{{ url_for('register_farmer') }}" class="btn btn-white btn-lg">
+        <i class="bi bi-person-plus"></i> Register Free
+      </a>
+      <a href="{{ url_for('register_mandi') }}" class="btn btn-outline btn-lg" style="border-color:rgba(255,255,255,.5);color:#fff;">
+        <i class="bi bi-shop"></i> Mandi Agent Sign Up
+      </a>
+    </div>
+    <p style="margin-top:24px;font-size:.8rem;color:rgba(255,255,255,.4);">
+      Demo: farmer <code style="color:#a5d6a7;">raju / raju123</code>
+      &nbsp;·&nbsp; mandi agent <code style="color:#a5d6a7;">ravi_kolar / kolar123</code>
+    </p>
+  </div>
+</section>
+
+{% endblock %}

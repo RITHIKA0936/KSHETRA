@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}My Mandi — KSHETRA{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{{ url_for('index') }}">Home</a>
+      <span>/</span>
+      <span>My Mandi</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <h1>{{ agent.mandi }}</h1>
+        <p>
+          {{ agent.name }} · <strong>{{ agent.location }}</strong> · {{ agent.contact }}
+        </p>
+      </div>
+      <a href="{{ url_for('add_disruption') }}" class="btn btn-danger">
+        <i class="bi bi-flag"></i> Flag Route Disruption
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="section-sm">
+  <div class="container">
+
+    <!-- Quick links -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:40px;">
+      <a href="{{ url_for('add_disruption') }}" class="btn btn-outline">
+        <i class="bi bi-flag"></i> Flag Route
+      </a>
+      <a href="{{ url_for('prebooking') }}" class="btn btn-outline">
+        <i class="bi bi-truck"></i> Supply Pipeline
+        {% if supply %}<span style="background:var(--amber);color:#fff;border-radius:30px;
+          padding:1px 7px;font-size:.72rem;margin-left:4px;">{{ supply|length }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('view_prices') }}" class="btn btn-outline">
+        <i class="bi bi-graph-up"></i> All Market Prices
+      </a>
+      <a href="{{ url_for('view_disruptions') }}" class="btn btn-outline">
+        <i class="bi bi-exclamation-triangle"></i> All Alerts
+      </a>
+    </div>
+
+    <!-- ===== POST PRICE ===== -->
+    <div style="max-width:680px;margin-bottom:48px;">
+      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:4px;">
+        <i class="bi bi-tag me-2 text-green"></i>Post Today's Crop Price
+      </h2>
+      <p style="font-size:.88rem;color:var(--muted);margin-bottom:20px;">
+        Prices you post are used by KSHETRA in mandi recommendations for farmers.
+      </p>
+
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;">
+        <form method="POST" action="{{ url_for('post_price') }}" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Crop</label>
+              <select class="form-select" name="crop_name" required>
+                <option value="">Select crop...</option>
+                {% for cname in ['Tomato','Onion','Potato','Carrot','Beans','Cabbage',
+                                  'Cauliflower','Brinjal','Chilli','Ragi','Maize',
+                                  'Paddy','Marigold','Rose','Jasmine','Banana','Mango'] %}
+                  <option value="{{ cname }}">{{ cname }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Price (₹ per ton)</label>
+              <input class="form-input" type="number" name="price"
+                     placeholder="e.g. 12500" min="100" step="100" required />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send"></i> Post Price
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== PRICES POSTED THIS WEEK ===== -->
+    <div style="margin-bottom:48px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <h2 style="font-size:1.15rem;font-weight:700;">
+          Prices Posted This Week
+          <span style="font-size:.85rem;color:var(--muted);font-weight:400;margin-left:8px;">
+            {{ prices|length }} entries
+          </span>
+        </h2>
+        <a href="{{ url_for('view_prices') }}" class="btn btn-outline btn-sm">View All Prices</a>
+      </div>
+
+      {% if prices %}
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Crop</th><th>Price (₹/ton)</th><th>Date</th></tr>
+          </thead>
+          <tbody>
+            {% for p in prices %}
+            <tr>
+              <td><span class="tag tag-green">{{ p.crop_name }}</span></td>
+              <td class="price-chip">₹{{ '{:,.0f}'.format(p.price) }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ p.date.strftime('%d %b %Y') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state" style="background:var(--white);border:1px solid var(--border);border-radius:14px;">
+        <div class="empty-icon"><i class="bi bi-tag"></i></div>
+        <h3>No prices posted yet this week</h3>
+        <p>Use the form above to post today's crop prices.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ===== SUPPLY PIPELINE (pending bookings) ===== -->
+    <div style="margin-bottom:48px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <h2 style="font-size:1.15rem;font-weight:700;">
+          <i class="bi bi-truck me-2 text-green"></i>Incoming Supply Pipeline
+          {% if supply %}
+          <span style="background:var(--amber);color:#fff;border-radius:30px;
+                       padding:2px 10px;font-size:.78rem;font-weight:700;margin-left:6px;">
+            {{ supply|length }} pending
+          </span>
+          {% endif %}
+        </h2>
+        <a href="{{ url_for('prebooking') }}" class="btn btn-outline btn-sm">Full Pipeline</a>
+      </div>
+
+      {% if supply %}
+      <div class="booking-grid">
+        {% for b in supply %}
+        <div class="booking-tile">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+            <div>
+              <div style="font-size:1.05rem;font-weight:700;">{{ b.crop_name }}</div>
+              <div style="font-size:.85rem;color:var(--muted);">{{ b.quantity }} tons</div>
+            </div>
+            <span class="status-badge status-{{ b.status|lower }}">{{ b.status }}</span>
+          </div>
+          <p style="font-size:.85rem;margin-bottom:6px;">
+            <i class="bi bi-person me-1" style="color:var(--green);"></i>
+            <strong>{{ b.farmer.name }}</strong> · {{ b.farmer.district }}
+          </p>
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px;">
+            <i class="bi bi-phone me-1"></i>{{ b.farmer.mobile }}
+            {% if b.preferred_date %}
+              · <i class="bi bi-calendar me-1"></i>{{ b.preferred_date.strftime('%d %b') }}
+            {% endif %}
+          </p>
+          <form method="POST" action="{{ url_for('confirm_booking', booking_id=b.id) }}">
+            <button type="submit" class="btn btn-primary btn-sm btn-full">
+              <i class="bi bi-check-circle"></i> Confirm Booking
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state" style="background:var(--white);border:1px solid var(--border);border-radius:14px;">
+        <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+        <h3>No pending supply bookings</h3>
+        <p>When farmers pre-book to sell at your mandi, they will appear here.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ===== ACTIVE DISRUPTIONS ===== -->
+    {% if disruptions %}
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <h2 style="font-size:1.15rem;font-weight:700;">
+          <i class="bi bi-exclamation-triangle me-2" style="color:var(--red);"></i>
+          Active Route Alerts
+        </h2>
+        <a href="{{ url_for('view_disruptions') }}" class="btn btn-outline btn-sm">View All</a>
+      </div>
+      <div class="disruption-list">
+        {% for d in disruptions %}
+        <div class="disruption-item">
+          <div>
+            <div class="disruption-route">{{ d.route }}</div>
+            <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+              <span class="tag tag-amber">{{ d.type }}</span>
+              <span class="tag tag-red">Active</span>
+            </div>
+            {% if d.description %}
+            <div class="disruption-desc">{{ d.description }}</div>
+            {% endif %}
+            <div class="disruption-date">
+              <i class="bi bi-calendar me-1"></i>
+              Since {{ d.start_date.strftime('%d %b %Y') }}
+            </div>
+          </div>
+          <div class="disruption-actions">
+            <form method="POST" action="{{ url_for('resolve_disruption', disruption_id=d.id) }}">
+              <button type="submit" class="btn btn-outline btn-sm">
+                <i class="bi bi-check"></i> Resolve
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}

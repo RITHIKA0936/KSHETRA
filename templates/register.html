@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Farmer' if role == 'farmer' else 'Mandi Agent' }} Registration — KSHETRA{% endblock %}
+
+{% block content %}
+<div class="auth-page" style="padding:40px 24px;">
+  <div class="auth-box" style="max-width:560px;">
+
+    <div class="auth-top">
+      <div class="icon-circle">
+        <i class="bi bi-{{ 'person-plus' if role == 'farmer' else 'shop' }}"></i>
+      </div>
+      <h2>{{ 'Create Farmer Account' if role == 'farmer' else 'Register as Mandi Agent' }}</h2>
+      <p>{{ 'Get smart mandi recommendations and track your crops' if role == 'farmer' else 'Post daily prices and manage the supply pipeline' }}</p>
+    </div>
+
+    <form class="auth-form" method="POST"
+          action="{{ url_for('register_farmer' if role == 'farmer' else 'register_mandi') }}"
+          novalidate>
+
+      {% if role == 'farmer' %}
+      <!-- ===== FARMER FIELDS ===== -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" name="name" placeholder="e.g. Raju Patil" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mobile Number</label>
+          <input class="form-input" type="tel" name="mobile" placeholder="10-digit number"
+                 pattern="[0-9]{10}" required />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Village</label>
+          <input class="form-input" type="text" name="village" placeholder="e.g. Malur" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">District</label>
+          <select class="form-select" name="district" required>
+            <option value="">Select district...</option>
+            {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan','Chikkaballapur','Ramanagara'] %}
+              <option value="{{ city }}">{{ city }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Cost of Production (₹ per ton)</label>
+        <input class="form-input" type="number" name="cost_of_production"
+               placeholder="e.g. 5000" min="0" step="100" value="5000" />
+        <div class="form-hint">Average cost to produce one ton of your crop (used in profit calculation)</div>
+      </div>
+
+      {% else %}
+      <!-- ===== MANDI AGENT FIELDS ===== -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" name="name" placeholder="e.g. Ravi Kumar" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact Number</label>
+          <input class="form-input" type="tel" name="contact" placeholder="10-digit number" required />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Mandi Name</label>
+          <select class="form-select" name="mandi" required>
+            <option value="">Select mandi...</option>
+            {% for m in ['Kolar Mandi','KR Market','Yeshwanthpur Market','Mysuru Mandi','Tumakuru Mandi','Mandya Mandi','Hassan Mandi'] %}
+              <option value="{{ m }}">{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mandi Location</label>
+          <select class="form-select" name="location" required>
+            <option value="">Select city...</option>
+            {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
+              <option value="{{ city }}">{{ city }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="divider"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-input" type="text" name="username"
+                 placeholder="Choose a username" required autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div style="display:flex;">
+            <input class="form-input" type="password" name="password"
+                   placeholder="Min 6 characters" minlength="6" required autocomplete="new-password"
+                   style="border-radius:8px 0 0 8px;" />
+            <button type="button" class="pwd-toggle"
+                    style="padding:0 14px;border:1.5px solid var(--border);border-left:none;
+                           border-radius:0 8px 8px 0;background:var(--bg);cursor:pointer;color:var(--muted);">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px;">
+        <i class="bi bi-check-circle"></i>
+        Create {{ 'Farmer' if role == 'farmer' else 'Mandi Agent' }} Account
+      </button>
+
+    </form>
+
+    <div class="auth-footer">
+      Already registered?
+      <a href="{{ url_for('login_farmer' if role == 'farmer' else 'login_mandi') }}">Login here</a>
+      {% if role == 'farmer' %}
+        &nbsp;·&nbsp; Are you a mandi agent?
+        <a href="{{ url_for('register_mandi') }}">Register as agent</a>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

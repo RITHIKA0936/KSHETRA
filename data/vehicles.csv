@@ -1,0 +1,7 @@
+Vehicle_ID,Vehicle_Type,Capacity_Tons,Cost_Per_KM,Speed_KMPH
+V001,Mini Truck,3,20,40
+V002,Small Truck,5,30,45
+V003,Medium Truck,10,50,50
+V004,Large Truck,20,80,55
+V005,Refrigerated Truck,8,70,45
+V006,Flower Transport Van,2,40,50

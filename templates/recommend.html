@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Mandi Recommendations for {{ crop.name }} — KSHETRA{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{{ url_for('index') }}">Home</a>
+      <span>/</span>
+      <a href="{{ url_for('farmer_dashboard') }}">My Crops</a>
+      <span>/</span>
+      <span>Recommendations</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <h1>Mandi Recommendations</h1>
+        <p>
+          Best markets for <strong>{{ crop.name }}</strong> ({{ crop.quantity }} tons)
+          from <strong>{{ farmer.district }}</strong> ·
+          Sorted by estimated net profit
+        </p>
+      </div>
+      <a href="{{ url_for('farmer_dashboard') }}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> My Crops
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="section-sm">
+  <div class="container">
+
+    <!-- Crop selector (if more than one crop) -->
+    {% if crops|length > 1 %}
+    <div style="margin-bottom:32px;">
+      <div style="font-size:.8rem;font-weight:700;color:var(--muted);
+                  text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+        Select crop to analyse
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% for c in crops %}
+        <a href="{{ url_for('recommend_mandi', crop_id=c.id) }}"
+           class="btn btn-sm {% if c.id == crop.id %}btn-primary{% else %}btn-outline{% endif %}">
+          {{ c.name }} · {{ c.quantity }}t
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Farmer context bar -->
+    <div style="background:var(--green-muted);border:1px solid #a5d6a7;border-radius:10px;
+                padding:14px 20px;margin-bottom:32px;display:flex;flex-wrap:wrap;gap:20px;
+                font-size:.88rem;">
+      <span><i class="bi bi-person me-1" style="color:var(--green);"></i>
+        <strong>{{ farmer.name }}</strong> · {{ farmer.district }}</span>
+      <span><i class="bi bi-currency-rupee me-1" style="color:var(--green);"></i>
+        Production cost: <strong>₹{{ '{:,.0f}'.format(farmer.cost_of_production) }}/ton</strong></span>
+      <span><i class="bi bi-bag me-1" style="color:var(--green);"></i>
+        <strong>{{ crop.name }}</strong> · {{ crop.quantity }} tons · {{ crop.shelf_life_days }}d shelf life</span>
+    </div>
+
+    {% if recommendations %}
+
+    <!-- ===== RECOMMENDATION CARDS ===== -->
+    <div class="rec-grid" style="margin-bottom:48px;">
+      {% for rec in recommendations %}
+      <div class="rec-tile {% if loop.first %}top-pick{% endif %}">
+
+        {% if loop.first %}
+          <div class="rec-rank-badge gold">⭐ Best Pick</div>
+        {% else %}
+          <div class="rec-rank-badge">Rank #{{ loop.index }}</div>
+        {% endif %}
+
+        <div class="rec-mandi">{{ rec.mandi }}</div>
+        <div class="rec-loc">
+          <i class="bi bi-geo-alt me-1"></i>{{ rec.location }}
+          {% if rec.is_disrupted %}
+            <span class="tag tag-red" style="margin-left:6px;">⚠ Route Disrupted</span>
+          {% endif %}
+        </div>
+
+        <div class="rec-profit {% if rec.net_profit < 0 %}negative{% endif %}">
+          ₹{{ '{:,.0f}'.format(rec.net_profit) }}
+        </div>
+        <div class="rec-profit-label">estimated net profit</div>
+
+        <div class="rec-stats">
+          <div class="rec-stat">
+            <div class="rec-stat-val">₹{{ '{:,.0f}'.format(rec.mandi_price) }}</div>
+            <div class="rec-stat-key">Price/ton</div>
+          </div>
+          <div class="rec-stat">
+            <div class="rec-stat-val">{{ rec.distance_km }} km</div>
+            <div class="rec-stat-key">Distance</div>
+          </div>
+          <div class="rec-stat">
+            <div class="rec-stat-val">₹{{ '{:,.0f}'.format(rec.transport_cost) }}</div>
+            <div class="rec-stat-key">Transport</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:6px;">
+          <span class="weather-tag {% if rec.rain_prob > 60 %}rainy{% endif %}">
+            <i class="bi bi-{% if rec.rain_prob > 60 %}cloud-rain{% else %}sun{% endif %}-fill"></i>
+            {{ rec.rain_prob }}% rain
+          </span>
+          {% if rec.is_disrupted %}
+            <span class="tag tag-red">−20% disruption</span>
+          {% elif rec.rain_prob > 60 %}
+            <span class="tag tag-amber">−10% rain risk</span>
+          {% else %}
+            <span class="tag tag-green">Route clear</span>
+          {% endif %}
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <a href="{{ url_for('price_history', crop_id=crop.id) }}"
+             class="btn btn-outline btn-sm btn-full">
+            <i class="bi bi-graph-up"></i> View 30-Day Price History
+          </a>
+          {% if loop.first %}
+          <form method="POST" action="{{ url_for('notify_farmer', farmer_id=farmer.id) }}">
+            <button type="submit" class="btn btn-amber btn-sm btn-full">
+              <i class="bi bi-bell"></i> Send SMS to My Phone
+            </button>
+          </form>
+          {% endif %}
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- ===== FULL COMPARISON TABLE ===== -->
+    <div>
+      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:16px;">Full Comparison</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Mandi</th>
+              <th>Location</th>
+              <th>Price ₹/ton</th>
+              <th>Distance</th>
+              <th>Transport ₹</th>
+              <th>Rain %</th>
+              <th>Net Profit ₹</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in recommendations %}
+            <tr {% if loop.first %}style="background:#f1f8f2;"{% endif %}>
+              <td style="font-weight:700;color:var(--muted);">{{ loop.index }}</td>
+              <td style="font-weight:600;">
+                {{ rec.mandi }}
+                {% if rec.is_disrupted %}<span class="tag tag-red" style="margin-left:4px;">⚠</span>{% endif %}
+              </td>
+              <td>{{ rec.location }}</td>
+              <td class="price-chip">₹{{ '{:,.0f}'.format(rec.mandi_price) }}</td>
+              <td>{{ rec.distance_km }} km</td>
+              <td>₹{{ '{:,.0f}'.format(rec.transport_cost) }}</td>
+              <td {% if rec.rain_prob > 60 %}style="color:var(--red);font-weight:700;"{% else %}style="color:var(--muted);"{% endif %}>
+                {{ rec.rain_prob }}%
+              </td>
+              <td style="font-weight:700;{% if rec.net_profit > 0 %}color:var(--green-dark);{% else %}color:var(--red);{% endif %}">
+                ₹{{ '{:,.0f}'.format(rec.net_profit) }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-shop"></i></div>
+      <h3>No mandi data available yet</h3>
+      <p>No mandi agents have posted prices yet. Government Agmarknet fallback prices are being used.</p>
+      <a href="{{ url_for('view_prices') }}" class="btn btn-primary">View Market Prices</a>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}

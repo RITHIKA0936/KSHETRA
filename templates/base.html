@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}KSHETRA{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- =================== NAVBAR =================== -->
+<nav class="site-nav">
+  <div class="nav-inner">
+
+    <a href="{{ url_for('index') }}" class="nav-logo">
+      <i class="bi bi-leaf-fill"></i> KSHE<span>TRA</span>
+    </a>
+
+    <!-- Desktop nav links -->
+    <div class="nav-links" id="navLinks">
+      <a href="{{ url_for('view_prices') }}"><i class="bi bi-graph-up me-1"></i>Market Prices</a>
+      <a href="{{ url_for('view_disruptions') }}"><i class="bi bi-exclamation-triangle me-1"></i>Alerts</a>
+
+      {% if session.get('role') == 'farmer' %}
+        <a href="{{ url_for('farmer_dashboard') }}"><i class="bi bi-house me-1"></i>My Crops</a>
+        <a href="{{ url_for('recommend_mandi') }}"><i class="bi bi-stars me-1"></i>Recommendations</a>
+        <a href="{{ url_for('prebooking') }}"><i class="bi bi-calendar-check me-1"></i>Pre-Book</a>
+      {% elif session.get('role') == 'mandi' %}
+        <a href="{{ url_for('mandi_dashboard') }}"><i class="bi bi-house me-1"></i>My Mandi</a>
+        <a href="{{ url_for('add_disruption') }}"><i class="bi bi-flag me-1"></i>Flag Route</a>
+        <a href="{{ url_for('prebooking') }}"><i class="bi bi-truck me-1"></i>Supply Pipeline</a>
+      {% endif %}
+    </div>
+
+    <!-- Right side -->
+    <div class="nav-end">
+      {% if session.get('role') %}
+        <span class="nav-user">
+          <i class="bi bi-person-circle"></i>
+          {{ session.get('farmer_name') or session.get('agent_name') }}
+        </span>
+        <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+      {% else %}
+        <a href="{{ url_for('login_farmer') }}"  class="btn btn-outline btn-sm">Login</a>
+        <a href="{{ url_for('register_farmer') }}" class="btn btn-primary btn-sm">Register</a>
+      {% endif %}
+    </div>
+
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+
+  </div>
+</nav>
+
+<!-- =================== FLASH MESSAGES =================== -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-wrap" id="flashWrap">
+  {% for cat, msg in messages %}
+  <div class="flash flash-{{ 'success' if cat == 'success' else ('danger' if cat == 'danger' else ('warning' if cat == 'warning' else 'info')) }}">
+    <i class="bi bi-{{ 'check-circle' if cat == 'success' else ('x-circle' if cat == 'danger' else ('exclamation-triangle' if cat == 'warning' else 'info-circle')) }}-fill"></i>
+    <span>{{ msg }}</span>
+    <button class="flash-close" type="button">×</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- =================== CONTENT =================== -->
+<main>{% block content %}{% endblock %}</main>
+
+<!-- =================== FOOTER =================== -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-logo"><i class="bi bi-leaf-fill"></i> KSHETRA</div>
+        <p class="footer-about">
+          Smart Agricultural Decision Support System connecting Karnataka farmers
+          with the best mandis using real-time prices, weather intelligence,
+          and route optimization.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h5>Farmers</h5>
+        <a href="{{ url_for('register_farmer') }}">Register</a>
+        <a href="{{ url_for('login_farmer') }}">Login</a>
+        <a href="{{ url_for('recommend_mandi') }}">Get Recommendations</a>
+        <a href="{{ url_for('prebooking') }}">Pre-Book Slot</a>
+      </div>
+      <div class="footer-col">
+        <h5>Market</h5>
+        <a href="{{ url_for('view_prices') }}">Today's Prices</a>
+        <a href="{{ url_for('view_disruptions') }}">Route Alerts</a>
+        <a href="{{ url_for('login_mandi') }}">Mandi Agent Login</a>
+        <a href="{{ url_for('register_mandi') }}">Agent Register</a>
+      </div>
+      <div class="footer-col">
+        <h5>Platform</h5>
+        <a href="{{ url_for('index') }}">Home</a>
+        <a href="{{ url_for('view_prices') }}">Price History</a>
+        <a href="{{ url_for('view_disruptions') }}">Disruptions</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 KSHETRA · Smart Agricultural System · Karnataka</span>
+      <span>Powered by Flask · Open-Meteo · AgroMonitoring</span>
+    </div>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

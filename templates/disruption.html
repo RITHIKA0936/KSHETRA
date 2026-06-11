@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}Route Alerts — KSHETRA{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ---- type icon colours ---- */
+  .dtype-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0; }
+  .dtype-flood    { background:#e3f2fd; color:#1565c0; }
+  .dtype-road     { background:#fff3e0; color:#e65100; }
+  .dtype-strike   { background:#fce4ec; color:#c62828; }
+  .dtype-festival { background:#f3e5f5; color:#6a1b9a; }
+  .dtype-accident { background:#fbe9e7; color:#bf360c; }
+  .dtype-other    { background:#f5f5f5; color:#424242; }
+
+  /* ---- alert banner ---- */
+  .alert-banner {
+    background: linear-gradient(135deg,#b71c1c,#c62828);
+    color:#fff;
+    border-radius:14px;
+    padding:22px 28px;
+    display:flex;
+    align-items:center;
+    gap:20px;
+    margin-bottom:40px;
+    flex-wrap:wrap;
+  }
+
+  .alert-banner-icon { font-size:2.2rem; flex-shrink:0; }
+  .alert-banner h3   { font-size:1.15rem; font-weight:700; margin-bottom:4px; }
+  .alert-banner p    { font-size:.88rem; opacity:.85; margin:0; }
+
+  /* ---- disruption card ---- */
+  .dis-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: flex-start;
+    transition: box-shadow .2s;
+  }
+  .dis-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+  .dis-card.resolved { opacity:.55; filter:grayscale(.4); }
+
+  .dis-route { font-size:1.05rem; font-weight:700; margin-bottom:6px; }
+  .dis-meta  { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  .dis-desc  { font-size:.86rem; color:var(--muted); margin-top:4px; }
+  .dis-dates { font-size:.78rem; color:var(--muted); margin-top:6px; }
+
+  /* ---- form card ---- */
+  .form-section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+  .form-section-top {
+    background: linear-gradient(135deg,#b71c1c,#e53935);
+    color:#fff;
+    padding:20px 28px;
+  }
+  .form-section-top h2 { font-size:1.1rem; font-weight:700; margin-bottom:2px; }
+  .form-section-top p  { font-size:.85rem; opacity:.8; margin:0; }
+  .form-section-body   { padding:28px; }
+
+  /* ---- section title line ---- */
+  .section-title-line {
+    display:flex;align-items:center;gap:12px;margin-bottom:20px;
+  }
+  .section-title-line h2 { font-size:1.1rem; font-weight:700; margin:0; }
+  .stl-bar { flex:1; height:1px; background:var(--border); }
+
+  /* ---- clear pill ---- */
+  .all-clear {
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    border-radius: 14px;
+    padding: 36px 24px;
+    text-align: center;
+    color: var(--green-dark);
+  }
+  .all-clear-icon { font-size:2.5rem; margin-bottom:12px; }
+  .all-clear h3 { font-size:1.1rem; font-weight:700; margin-bottom:6px; }
+  .all-clear p  { font-size:.88rem; color:var(--green); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ===== PAGE HEADER ===== -->
+<div class="page-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{{ url_for('index') }}">Home</a>
+      <span>/</span>
+      <span>Route Alerts</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <h1>Route Alerts</h1>
+        <p>Live road blocks, floods, strikes and closures affecting delivery routes across Karnataka</p>
+      </div>
+      {% if session.get('role') in ['mandi','admin'] %}
+      <a href="{{ url_for('add_disruption') }}" class="btn btn-danger">
+        <i class="bi bi-flag"></i> Flag a Disruption
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% set active   = disruptions | selectattr('active_flag')   | list %}
+{% set resolved = disruptions | rejectattr('active_flag')   | list %}
+
+<div class="section-sm">
+  <div class="container">
+
+    <!-- ===== RED BANNER when active alerts exist ===== -->
+    {% if active %}
+    <div class="alert-banner">
+      <div class="alert-banner-icon">⚠️</div>
+      <div>
+        <h3>{{ active|length }} active route disruption{{ 's' if active|length > 1 }} right now</h3>
+        <p>These routes are penalised in mandi recommendations. Farmers are advised to plan alternate routes.</p>
+      </div>
+      {% if session.get('role') in ['mandi','admin'] %}
+      <a href="{{ url_for('add_disruption') }}" class="btn btn-white btn-sm" style="margin-left:auto;flex-shrink:0;">
+        <i class="bi bi-plus"></i> Add New
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ===== FLAG DISRUPTION FORM (mandi/admin only) ===== -->
+    {% if show_form and session.get('role') in ['mandi','admin'] %}
+    <div class="form-section">
+      <div class="form-section-top">
+        <h2><i class="bi bi-flag me-2"></i>Report a Route Disruption</h2>
+        <p>This will immediately alert farmers and reduce the route's score in recommendations</p>
+      </div>
+      <div class="form-section-body">
+        <form method="POST" action="{{ url_for('add_disruption') }}" novalidate>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" class="resp-grid">
+            <div class="form-group">
+              <label class="form-label">Route</label>
+              {% if route_options %}
+              <select class="form-select" name="route" required>
+                <option value="">Select affected route...</option>
+                {% for r in route_options %}
+                  <option value="{{ r }}">{{ r }}</option>
+                {% endfor %}
+              </select>
+              {% else %}
+              <input class="form-input" type="text" name="route"
+                     placeholder="e.g. Kolar → Bengaluru" required />
+              {% endif %}
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Disruption Type</label>
+              <select class="form-select" name="type" required>
+                <option value="">Select type...</option>
+                <option value="Road Closure">🚧 Road Closure</option>
+                <option value="Flood">🌊 Flood</option>
+                <option value="Strike">✊ Strike</option>
+                <option value="Festival">🎉 Festival</option>
+                <option value="Accident">🚨 Accident</option>
+                <option value="Other">📌 Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Start Date</label>
+              <input class="form-input" type="date" name="start_date" value="{{ today }}" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">End Date <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+              <input class="form-input" type="date" name="end_date" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+            <input class="form-input" type="text" name="description"
+                   placeholder="e.g. NH-75 highway maintenance near Malur, expected 3 days" />
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button type="submit" class="btn btn-danger">
+              <i class="bi bi-flag"></i> Submit Alert
+            </button>
+            <a href="{{ url_for('view_disruptions') }}" class="btn btn-outline">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ===== ACTIVE DISRUPTIONS ===== -->
+    {% if active %}
+    <div style="margin-bottom:48px;">
+      <div class="section-title-line">
+        <h2><i class="bi bi-exclamation-triangle-fill me-2" style="color:var(--red);"></i>Active Alerts</h2>
+        <div class="stl-bar"></div>
+        <span class="tag tag-red">{{ active|length }} live</span>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        {% for d in active %}
+        {% set dtype = d.type | lower %}
+        <div class="dis-card">
+
+          <!-- Icon -->
+          <div class="dtype-icon
+            {% if 'flood' in dtype %}dtype-flood
+            {% elif 'road' in dtype or 'closure' in dtype %}dtype-road
+            {% elif 'strike' in dtype %}dtype-strike
+            {% elif 'festival' in dtype %}dtype-festival
+            {% elif 'accident' in dtype %}dtype-accident
+            {% else %}dtype-other{% endif %}">
+            {% if 'flood' in dtype %}🌊
+            {% elif 'road' in dtype or 'closure' in dtype %}🚧
+            {% elif 'strike' in dtype %}✊
+            {% elif 'festival' in dtype %}🎉
+            {% elif 'accident' in dtype %}🚨
+            {% else %}📌{% endif %}
+          </div>
+
+          <!-- Content -->
+          <div>
+            <div class="dis-route">{{ d.route }}</div>
+            <div class="dis-meta">
+              <span class="tag tag-amber">{{ d.type }}</span>
+              <span class="tag tag-red" style="background:#ffebee;color:#b71c1c;">● ACTIVE</span>
+            </div>
+            {% if d.description %}
+              <div class="dis-desc">{{ d.description }}</div>
+            {% endif %}
+            <div class="dis-dates">
+              <i class="bi bi-calendar3 me-1"></i>
+              Since {{ d.start_date.strftime('%d %b %Y') }}
+              {% if d.end_date %} — Expected end: {{ d.end_date.strftime('%d %b %Y') }}{% endif %}
+            </div>
+          </div>
+
+          <!-- Action -->
+          <div style="flex-shrink:0;">
+            {% if session.get('role') in ['mandi','admin'] %}
+            <form method="POST" action="{{ url_for('resolve_disruption', disruption_id=d.id) }}">
+              <button type="submit" class="btn btn-outline btn-sm">
+                <i class="bi bi-check2-circle"></i> Mark Resolved
+              </button>
+            </form>
+            {% else %}
+            <span class="tag tag-grey" style="font-size:.72rem;">
+              <i class="bi bi-info-circle me-1"></i>Affects routing
+            </span>
+            {% endif %}
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% else %}
+    <div class="all-clear" style="margin-bottom:40px;">
+      <div class="all-clear-icon">✅</div>
+      <h3>All routes are clear right now</h3>
+      <p>No active disruptions. KSHETRA recommendations are using optimal routes.</p>
+    </div>
+    {% endif %}
+
+    <!-- ===== RESOLVED / PAST DISRUPTIONS ===== -->
+    {% if resolved %}
+    <div>
+      <div class="section-title-line">
+        <h2 style="color:var(--muted);"><i class="bi bi-clock-history me-2"></i>Past Disruptions</h2>
+        <div class="stl-bar"></div>
+        <span class="tag tag-grey">{{ resolved|length }} resolved</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Started</th>
+              <th>Ended</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in resolved %}
+            <tr>
+              <td style="font-weight:600;">{{ d.route }}</td>
+              <td><span class="tag tag-grey">{{ d.type }}</span></td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ d.description or '—' }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ d.start_date.strftime('%d %b %Y') }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ d.end_date.strftime('%d %b %Y') if d.end_date else '—' }}</td>
+              <td><span class="tag tag-green">✓ Resolved</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not disruptions %}
+    <div class="all-clear">
+      <div class="all-clear-icon">🛣️</div>
+      <h3>No disruptions recorded yet</h3>
+      <p>All routes are operating normally.</p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<style>
+@media (max-width:640px) {
+  .dis-card { grid-template-columns: auto 1fr; }
+  .dis-card > *:last-child { grid-column: 1/-1; }
+  .resp-grid { grid-template-columns: 1fr !important; }
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+Crop,Season,Average_Yield_Ton_Per_Acre,Selling_Price_Per_Ton,Shelf_Life_Days,Category
+Tomato,Kharif/Rabi,15,12000,5,Vegetable
+Onion,Kharif/Rabi,10,15000,30,Vegetable
+Potato,Rabi,8,18000,60,Vegetable
+Carrot,Rabi,10,18000,20,Vegetable
+Beans,Kharif,5,25000,4,Vegetable
+Cabbage,Rabi,12,10000,15,Vegetable
+Cauliflower,Rabi,10,14000,7,Vegetable
+Brinjal,Kharif/Rabi,12,16000,5,Vegetable
+Chilli,Kharif,3,70000,90,Spice
+Ragi,Kharif,1.2,30000,180,Millet
+Maize,Kharif,2.5,18000,180,Cereal
+Paddy,Kharif,2,22000,365,Cereal
+Marigold,All Season,6,25000,2,Flower
+Rose,All Season,5,60000,3,Flower
+Jasmine,Summer,2,120000,1,Flower
+Banana,All Season,15,15000,10,Fruit
+Mango,Summer,4,70000,12,Fruit

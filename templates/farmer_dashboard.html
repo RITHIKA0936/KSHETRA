@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}My Crops — KSHETRA{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{{ url_for('index') }}">Home</a>
+      <span>/</span>
+      <span>My Crops</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <h1>My Crops</h1>
+        <p>
+          Welcome back, <strong>{{ farmer.name }}</strong> ·
+          {{ farmer.village }}, {{ farmer.district }} ·
+          Production cost: <strong>₹{{ '{:,.0f}'.format(farmer.cost_of_production) }}/ton</strong>
+        </p>
+      </div>
+      <a href="{{ url_for('recommend_mandi') }}" class="btn btn-primary">
+        <i class="bi bi-stars"></i> Get Mandi Recommendations
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="section-sm">
+  <div class="container">
+
+    <!-- Satellite Health Strip -->
+    <div style="background:var(--blue-muted);border:1px solid #90caf9;border-radius:12px;
+                padding:16px 22px;margin-bottom:36px;display:flex;align-items:center;
+                gap:20px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--blue);letter-spacing:.08em;
+                    text-transform:uppercase;margin-bottom:2px;">
+          <i class="bi bi-satellite me-1"></i> Satellite Crop Health · {{ farmer.district }}
+        </div>
+        <div style="font-size:1.15rem;font-weight:700;color:#0d47a1;">
+          {{ ndvi.health }}
+          <span style="font-size:.85rem;font-weight:400;color:var(--blue);margin-left:6px;">NDVI {{ ndvi.ndvi }}</span>
+        </div>
+      </div>
+      <div style="flex:1;min-width:160px;">
+        <div style="height:8px;background:rgba(0,0,0,.08);border-radius:8px;overflow:hidden;">
+          <div style="height:100%;width:{{ [ndvi.ndvi * 100, 100]|min }}%;
+                      background:linear-gradient(90deg,#ef5350,#ffb300,#43a047);border-radius:8px;
+                      transition:width .6s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--blue);margin-top:3px;">
+          <span>0 Stressed</span><span>1 Excellent</span>
+        </div>
+      </div>
+      {% if disruptions %}
+      <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;
+                  padding:10px 14px;font-size:.84rem;color:var(--red);">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        <strong>{{ disruptions|length }} route alert{{ 's' if disruptions|length > 1 }}.</strong>
+        <a href="{{ url_for('view_disruptions') }}" style="color:var(--red);font-weight:600;margin-left:4px;">
+          View →
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Quick links row -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:40px;">
+      <a href="{{ url_for('recommend_mandi') }}" class="btn btn-primary">
+        <i class="bi bi-stars"></i> Recommendations
+      </a>
+      <a href="{{ url_for('view_prices') }}" class="btn btn-outline">
+        <i class="bi bi-graph-up"></i> Market Prices
+      </a>
+      <a href="{{ url_for('prebooking') }}" class="btn btn-outline">
+        <i class="bi bi-calendar-plus"></i> Pre-Book Slot
+      </a>
+      <a href="{{ url_for('view_disruptions') }}" class="btn btn-outline">
+        <i class="bi bi-exclamation-triangle"></i> Route Alerts
+      </a>
+    </div>
+
+    <!-- ===== CROPS ===== -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <h2 style="font-size:1.25rem;font-weight:700;">
+        Your Crops
+        <span style="font-size:.85rem;color:var(--muted);font-weight:400;margin-left:8px;">
+          {{ crops|length }} listed
+        </span>
+      </h2>
+    </div>
+
+    {% if crops %}
+    <div class="crop-grid" style="margin-bottom:40px;">
+      {% for crop in crops %}
+      <div class="crop-tile">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+          <span class="tag tag-green">{{ crop.name }}</span>
+          <span class="tag {% if crop.shelf_life_days <= 3 %}tag-red{% elif crop.shelf_life_days <= 7 %}tag-amber{% else %}tag-grey{% endif %}">
+            {{ crop.shelf_life_days }}d shelf
+          </span>
+        </div>
+        <div class="crop-tile-qty">{{ crop.quantity }}</div>
+        <div class="crop-tile-label">tons available</div>
+        <div class="shelf-indicator">
+          <div class="shelf-indicator-fill {% if crop.shelf_life_days <= 3 %}urgent{% elif crop.shelf_life_days <= 7 %}medium{% endif %}"
+               style="width:{{ [crop.shelf_life_days / 30 * 100, 100]|min }}%;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a href="{{ url_for('recommend_mandi', crop_id=crop.id) }}"
+             class="btn btn-primary btn-sm" style="flex:1;justify-content:center;">
+            <i class="bi bi-stars"></i> Best Mandi
+          </a>
+          <a href="{{ url_for('price_history', crop_id=crop.id) }}"
+             class="btn btn-outline btn-sm" style="flex:1;justify-content:center;">
+            <i class="bi bi-graph-up"></i> Prices
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="margin-bottom:40px;">
+      <div class="empty-icon"><i class="bi bi-bag-x"></i></div>
+      <h3>No crops added yet</h3>
+      <p>Add your first crop below to get mandi recommendations and price alerts.</p>
+    </div>
+    {% endif %}
+
+    <!-- ===== ADD CROP FORM ===== -->
+    <div style="max-width:680px;">
+      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:20px;">
+        <i class="bi bi-plus-circle me-2 text-green"></i>Add a New Crop
+      </h2>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;">
+        <form method="POST" action="{{ url_for('add_crop') }}" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Crop Name</label>
+              <input class="form-input" type="text" name="crop_name"
+                     placeholder="e.g. Tomato" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Quantity (tons)</label>
+              <input class="form-input" type="number" name="quantity"
+                     placeholder="e.g. 5" step="0.1" min="0.1" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Shelf Life (days)</label>
+            <input class="form-input" type="number" name="shelf_life_days"
+                   placeholder="e.g. 7" min="1" value="7" required />
+            <div class="form-hint">
+              How many days before the crop starts to spoil
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Crop
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== TRANSPORT CALCULATOR ===== -->
+    <div style="max-width:680px;margin-top:48px;">
+      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:20px;">
+        <i class="bi bi-truck me-2 text-green"></i>Transport Cost Calculator
+      </h2>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">From (your district)</label>
+            <select class="form-select" id="tc_from">
+              {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
+                <option {% if city == farmer.district %}selected{% endif %}>{{ city }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">To (mandi city)</label>
+            <select class="form-select" id="tc_to">
+              {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
+                <option {% if city == 'Bengaluru' %}selected{% endif %}>{{ city }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Quantity (tons)</label>
+            <input class="form-input" type="number" id="tc_qty" value="5" step="0.1" min="0.1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Transport Mode</label>
+            <select class="form-select" id="tc_mode">
+              <option>Bullock Cart</option>
+              <option>Tractor</option>
+              <option selected>Truck</option>
+              <option>Mini Truck</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="calcTransportCost()" class="btn btn-amber">
+          <i class="bi bi-calculator"></i> Calculate
+        </button>
+        <div id="tc_result"></div>
+      </div>
+    </div>
+
+    <!-- ===== RECENT PRE-BOOKINGS ===== -->
+    {% if bookings %}
+    <div style="margin-top:48px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <h2 style="font-size:1.15rem;font-weight:700;">
+          <i class="bi bi-calendar-check me-2 text-green"></i>Recent Pre-Bookings
+        </h2>
+        <a href="{{ url_for('prebooking') }}" class="btn btn-outline btn-sm">View All</a>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Crop</th><th>Quantity</th><th>Preferred Date</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for b in bookings %}
+            <tr>
+              <td style="font-weight:600;">{{ b.crop_name }}</td>
+              <td>{{ b.quantity }} tons</td>
+              <td style="color:var(--muted);">
+                {{ b.preferred_date.strftime('%d %b %Y') if b.preferred_date else '—' }}
+              </td>
+              <td><span class="status-badge status-{{ b.status|lower }}">{{ b.status }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}

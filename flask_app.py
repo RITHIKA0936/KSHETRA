@@ -14,7 +14,7 @@ from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify
 )
-from models import db, Farmer, Crop, MandiAgent, PriceEntry, Disruption, PreBooking
+from models import db, Farmer, Crop, MandiAgent, PriceEntry, Disruption, PreBooking, CropDeal
 from config  import Config
 from datetime import datetime, date, timedelta
 import requests
@@ -56,6 +56,9 @@ def load_distance_matrix():
         # Fallback to config defaults
         DISTANCE_MATRIX = {k: v for k, v in Config.DISTANCE_DEFAULTS.items()}
 
+load_distance_matrix()
+
+
 
 def get_distance(city_a, city_b):
     """Return distance in km between two cities. Returns 999 if unknown."""
@@ -89,7 +92,7 @@ def get_weather_forecast(city):
             "timezone":  "Asia/Kolkata",
             "forecast_days": 3
         }
-        resp = requests.get(Config.OPEN_METEO_BASE_URL, params=params, timeout=5)
+        resp = requests.get(Config.OPEN_METEO_BASE_URL, params=params, timeout=2)
         data = resp.json()
 
         # Parse precipitation and temperature from the response
@@ -224,11 +227,54 @@ def _agmarknet_fallback(crop_name):
 
 def calculate_transport_cost(distance_km, quantity_tons, mode="Truck"):
     """
-    Calculate transport cost based on distance, quantity and transport mode.
-    Rate (₹/km/ton) is fetched from Config.TRANSPORT_RATES.
+    Accurate agricultural transport cost model for Karnataka.
+
+    Formula breaks cost into four real components:
+
+    1. VARIABLE COST  — fuel/fodder per km × distance × trips needed
+    2. LOADING/UNLOADING — fixed labour charge per ton
+    3. TOLL / ROAD TAX  — per km on state highways (Truck/Mini Truck only)
+    4. DRIVER ALLOWANCE — per trip flat charge (Truck/Mini Truck only)
+
+    Vehicle specs (Karnataka agricultural transport norms):
+    ┌──────────────┬──────────┬───────────────┬────────────────┬──────────────┐
+    │ Mode         │ Capacity │ Fuel ₹/km     │ Load/Unload ₹/t│ Toll ₹/km   │
+    ├──────────────┼──────────┼───────────────┼────────────────┼──────────────┤
+    │ Bullock Cart │ 0.75 t   │ 4 (fodder)    │ 80             │ 0            │
+    │ Tractor      │ 3 t      │ 18 (diesel)   │ 100            │ 0            │
+    │ Mini Truck   │ 3 t      │ 22 (diesel)   │ 120            │ 0.80         │
+    │ Truck        │ 10 t     │ 35 (diesel)   │ 150            │ 1.20         │
+    └──────────────┴──────────┴───────────────┴────────────────┴──────────────┘
+
+    Returns a dict with itemised breakdown + grand total.
     """
-    rate = Config.TRANSPORT_RATES.get(mode, 18)
-    return round(distance_km * quantity_tons * rate, 2)
+    SPECS = {
+        "Bullock Cart": {"capacity": 0.75, "fuel_per_km":  4, "load_per_ton":  80, "toll_per_km": 0,    "driver_per_trip":   0},
+        "Tractor":      {"capacity": 3.0,  "fuel_per_km": 18, "load_per_ton": 100, "toll_per_km": 0,    "driver_per_trip": 300},
+        "Mini Truck":   {"capacity": 3.0,  "fuel_per_km": 22, "load_per_ton": 120, "toll_per_km": 0.80, "driver_per_trip": 500},
+        "Truck":        {"capacity": 10.0, "fuel_per_km": 35, "load_per_ton": 150, "toll_per_km": 1.20, "driver_per_trip": 800},
+    }
+
+    spec = SPECS.get(mode, SPECS["Truck"])
+
+    import math
+    trips = math.ceil(quantity_tons / spec["capacity"])
+
+    fuel_cost    = round(spec["fuel_per_km"] * distance_km * trips, 2)
+    loading_cost = round(spec["load_per_ton"] * quantity_tons, 2)
+    toll_cost    = round(spec["toll_per_km"] * distance_km * trips, 2)
+    driver_cost  = round(spec["driver_per_trip"] * trips, 2)
+    total        = round(fuel_cost + loading_cost + toll_cost + driver_cost, 2)
+
+    return {
+        "trips":        trips,
+        "capacity_ton": spec["capacity"],
+        "fuel_cost":    fuel_cost,
+        "loading_cost": loading_cost,
+        "toll_cost":    toll_cost,
+        "driver_cost":  driver_cost,
+        "total":        total,
+    }
 
 
 def send_sms_notification(mobile, message):
@@ -272,19 +318,33 @@ def recommend_mandis(farmer, crop):
         - Active disruptions on route → subtract 20% of profit
         - Rain probability > 60%      → subtract 10% of profit
     Returns a sorted list of mandi recommendations (best first).
-    """
-    # Fetch all mandi agents
-    agents  = MandiAgent.query.all()
-    results = []
 
-    # Active disruptions (used to penalise routes)
+    Weather is fetched once per unique city (not once per agent) to avoid
+    multiple blocking HTTP calls.
+    """
+    agents      = MandiAgent.query.all()
+    results     = []
     disruptions = Disruption.query.filter_by(active_flag=True).all()
     disrupted_routes = [d.route.lower() for d in disruptions]
 
-    for agent in agents:
-        mandi_location = agent.location   # city name
+    # --- Pre-fetch weather in parallel for all unique cities ---
+    unique_cities = list({a.location for a in agents})
+    weather_cache = {}
 
-        # 1. Get mandi price for this crop (last posted by this agent)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    with ThreadPoolExecutor(max_workers=len(unique_cities) or 1) as pool:
+        future_map = {pool.submit(get_weather_forecast, city): city for city in unique_cities}
+        for future in as_completed(future_map):
+            city = future_map[future]
+            try:
+                weather_cache[city] = future.result()
+            except Exception:
+                weather_cache[city] = {"rain_probability": 10, "max_temp": 30, "description": "N/A"}
+
+    for agent in agents:
+        mandi_location = agent.location
+
+        # 1. Mandi price
         entry = (PriceEntry.query
                  .filter_by(mandi_agent_id=agent.id, crop_name=crop.name)
                  .order_by(PriceEntry.date.desc())
@@ -293,29 +353,28 @@ def recommend_mandis(farmer, crop):
         if entry:
             mandi_price = entry.price
         else:
-            # Fallback to Agmarknet government price
-            gov_prices  = get_agmarknet_price(crop.name)
+            gov_prices  = _agmarknet_fallback(crop.name)   # use local fallback directly — no HTTP
             mandi_price = gov_prices[0]["price"] if gov_prices else 10000
 
         # 2. Distance & transport cost
-        distance = get_distance(farmer.district, mandi_location)
-        transport_cost = calculate_transport_cost(distance, crop.quantity, "Truck")
+        distance       = get_distance(farmer.district, mandi_location)
+        transport_cost = calculate_transport_cost(distance, crop.quantity, "Truck")["total"]
 
-        # 3. Net profit per ton
+        # 3. Net profit
         net_profit = (mandi_price - farmer.cost_of_production) * crop.quantity - transport_cost
 
-        # 4. Weather penalty
-        weather    = get_weather_forecast(mandi_location)
-        rain_prob  = weather["rain_probability"]
+        # 4. Weather penalty (from cache)
+        weather   = weather_cache.get(mandi_location, {"rain_probability": 10, "max_temp": 30, "description": "N/A"})
+        rain_prob = weather["rain_probability"]
         if rain_prob > 60:
-            net_profit *= 0.90   # −10% for high rain risk
+            net_profit *= 0.90
 
         # 5. Disruption penalty
-        route_key = f"{farmer.district.lower()} → {mandi_location.lower()}"
+        route_key  = f"{farmer.district.lower()} → {mandi_location.lower()}"
         route_key2 = f"{mandi_location.lower()} → {farmer.district.lower()}"
         is_disrupted = any(route_key in r or route_key2 in r for r in disrupted_routes)
         if is_disrupted:
-            net_profit *= 0.80   # −20% for active disruption
+            net_profit *= 0.80
 
         results.append({
             "agent":          agent,
@@ -330,7 +389,6 @@ def recommend_mandis(farmer, crop):
             "is_disrupted":   is_disrupted,
         })
 
-    # Sort by net profit descending
     results.sort(key=lambda x: x["net_profit"], reverse=True)
     return results
 
@@ -426,23 +484,44 @@ def farmer_dashboard():
         return redirect(url_for("login_farmer"))
 
     farmer      = Farmer.query.get(session["farmer_id"])
-    crops       = Crop.query.filter_by(farmer_id=farmer.id).all()
-    disruptions = Disruption.query.filter_by(active_flag=True).all()
+    crops       = Crop.query.filter_by(farmer_id=farmer.id).order_by(Crop.shelf_life_days.asc()).all()
+    disruptions = Disruption.query.order_by(
+                      Disruption.active_flag.desc(),
+                      Disruption.start_date.desc()).all()
+    active_disruptions = [d for d in disruptions if d.active_flag]
 
     # NDVI crop health for farmer's district
     ndvi_data   = get_agro_ndvi(farmer.district)
 
-    # Pending pre-bookings for this farmer
+    # All pre-bookings for this farmer
     bookings    = PreBooking.query.filter_by(farmer_id=farmer.id).order_by(
-                      PreBooking.created_at.desc()).limit(5).all()
+                      PreBooking.created_at.desc()).all()
+
+    # All mandi agents for pre-booking form
+    agents      = MandiAgent.query.all()
+
+    # Market prices (last 48 hours) for the prices tab
+    since       = date.today() - timedelta(days=2)
+    price_entries = (PriceEntry.query
+                     .filter(PriceEntry.date >= since)
+                     .order_by(PriceEntry.date.desc(), PriceEntry.price.desc())
+                     .all())
+
+    # Active tab from query param (default: platform)
+    active_tab  = request.args.get("tab", "platform")
 
     return render_template(
         "farmer_dashboard.html",
         farmer=farmer,
         crops=crops,
         disruptions=disruptions,
+        active_disruptions=active_disruptions,
         ndvi=ndvi_data,
-        bookings=bookings
+        bookings=bookings,
+        agents=agents,
+        price_entries=price_entries,
+        active_tab=active_tab,
+        today=date.today().strftime("%Y-%m-%d"),
     )
 
 
@@ -472,6 +551,41 @@ def add_crop():
     db.session.add(crop)
     db.session.commit()
     flash(f"Crop '{name}' added successfully!", "success")
+    return redirect(url_for("farmer_dashboard"))
+
+
+@app.route("/delete_crop/<int:crop_id>", methods=["POST"])
+def delete_crop(crop_id):
+    """Delete a crop belonging to the logged-in farmer."""
+    if session.get("role") != "farmer":
+        return redirect(url_for("login_farmer"))
+    crop = Crop.query.get_or_404(crop_id)
+    if crop.farmer_id != session["farmer_id"]:
+        flash("Unauthorised.", "danger")
+        return redirect(url_for("farmer_dashboard"))
+    db.session.delete(crop)
+    db.session.commit()
+    flash(f"Crop '{crop.name}' deleted.", "info")
+    return redirect(url_for("farmer_dashboard"))
+
+
+@app.route("/edit_crop/<int:crop_id>", methods=["POST"])
+def edit_crop(crop_id):
+    """Update quantity and shelf_life_days for a crop."""
+    if session.get("role") != "farmer":
+        return redirect(url_for("login_farmer"))
+    crop = Crop.query.get_or_404(crop_id)
+    if crop.farmer_id != session["farmer_id"]:
+        flash("Unauthorised.", "danger")
+        return redirect(url_for("farmer_dashboard"))
+    quantity        = request.form.get("quantity", type=float)
+    shelf_life_days = request.form.get("shelf_life_days", type=int)
+    if quantity and quantity > 0:
+        crop.quantity = quantity
+    if shelf_life_days and shelf_life_days > 0:
+        crop.shelf_life_days = shelf_life_days
+    db.session.commit()
+    flash(f"Crop '{crop.name}' updated.", "success")
     return redirect(url_for("farmer_dashboard"))
 
 
@@ -577,36 +691,61 @@ def login_mandi():
 @app.route("/mandi_dashboard")
 def mandi_dashboard():
     """
-    Mandi Agent's dashboard:
-    - Recent prices posted by this agent
-    - Pre-bookings / supply pipeline from farmers
-    - Active disruptions
+    Mandi Agent's dashboard with sidebar tabs:
+    - Platform: post price + prices this week
+    - Supply Pipeline: pre-bookings
+    - Market Prices: all recent prices
+    - All Alerts: disruptions
     """
     if session.get("role") != "mandi":
         flash("Please login as a mandi agent.", "warning")
         return redirect(url_for("login_mandi"))
 
-    agent       = MandiAgent.query.get(session["agent_id"])
-    # Recent prices (last 7 days) posted by this agent
-    since       = date.today() - timedelta(days=7)
-    prices      = (PriceEntry.query
-                   .filter_by(mandi_agent_id=agent.id)
-                   .filter(PriceEntry.date >= since)
-                   .order_by(PriceEntry.date.desc())
-                   .all())
+    agent  = MandiAgent.query.get(session["agent_id"])
 
-    # Supply pipeline: pending pre-bookings directed at this agent
-    supply      = PreBooking.query.filter_by(
-                      mandi_agent_id=agent.id, status="Pending").all()
+    # Prices posted by this agent (last 7 days)
+    since  = date.today() - timedelta(days=7)
+    prices = (PriceEntry.query
+              .filter_by(mandi_agent_id=agent.id)
+              .filter(PriceEntry.date >= since)
+              .order_by(PriceEntry.date.desc())
+              .all())
 
-    disruptions = Disruption.query.filter_by(active_flag=True).all()
+    # All supply pipeline bookings for this agent
+    supply_all   = PreBooking.query.filter_by(mandi_agent_id=agent.id).order_by(
+                       PreBooking.created_at.desc()).all()
+    supply       = [b for b in supply_all if b.status == "Pending"]
+
+    # All market price entries (last 48h) for market prices tab
+    since_48     = date.today() - timedelta(days=2)
+    all_prices   = (PriceEntry.query
+                    .filter(PriceEntry.date >= since_48)
+                    .order_by(PriceEntry.date.desc(), PriceEntry.price.desc())
+                    .all())
+
+    # All disruptions for alerts tab
+    all_disrupt  = Disruption.query.order_by(
+                       Disruption.active_flag.desc(),
+                       Disruption.start_date.desc()).all()
+    active_disrupt = [d for d in all_disrupt if d.active_flag]
+
+    # Route options for flag form
+    route_options = sorted(set(f"{a} → {b}" for (a, b) in DISTANCE_MATRIX.keys() if a < b))
+
+    active_tab = request.args.get("tab", "platform")
 
     return render_template(
         "mandi_dashboard.html",
         agent=agent,
         prices=prices,
         supply=supply,
-        disruptions=disruptions
+        supply_all=supply_all,
+        disruptions=active_disrupt,
+        all_disruptions=all_disrupt,
+        all_prices=all_prices,
+        route_options=route_options,
+        active_tab=active_tab,
+        today=date.today().strftime("%Y-%m-%d"),
     )
 
 
@@ -614,33 +753,69 @@ def mandi_dashboard():
 def post_price():
     """
     POST: Mandi agent posts today's price for a specific crop.
-    Form fields: crop_name, price
-    Looks up any existing crop with that name, or creates a reference entry.
+    Form fields: crop_name, price, quantity_required
     """
     if session.get("role") != "mandi":
         return redirect(url_for("login_mandi"))
 
-    crop_name = request.form.get("crop_name", "").strip().title()
-    price_val = float(request.form.get("price", 0))
+    crop_name         = request.form.get("crop_name", "").strip().title()
+    price_val         = float(request.form.get("price", 0))
+    qty_req_str       = request.form.get("quantity_required", "").strip()
+    quantity_required = float(qty_req_str) if qty_req_str else None
 
     if not crop_name or price_val <= 0:
         flash("Please enter valid crop name and price.", "danger")
         return redirect(url_for("mandi_dashboard"))
 
-    # Find first crop with this name in the DB (any farmer's crop)
-    crop = Crop.query.filter(Crop.name.ilike(crop_name)).first()
+    crop    = Crop.query.filter(Crop.name.ilike(crop_name)).first()
     crop_id = crop.id if crop else None
 
     entry = PriceEntry(
-        crop_id=crop_id,          # may be None if no farmer has added it yet
+        crop_id=crop_id,
         mandi_agent_id=session["agent_id"],
         crop_name=crop_name,
         price=price_val,
+        quantity_required=quantity_required,
         date=date.today()
     )
     db.session.add(entry)
     db.session.commit()
-    flash(f"Price posted: ₹{price_val:,.0f}/ton for {crop_name}", "success")
+    qty_str = f" · {quantity_required}t required" if quantity_required else ""
+    flash(f"Price posted: ₹{price_val:,.0f}/ton for {crop_name}{qty_str}", "success")
+    return redirect(url_for("mandi_dashboard"))
+
+
+@app.route("/delete_price/<int:entry_id>", methods=["POST"])
+def delete_price(entry_id):
+    """Delete a price entry posted by the logged-in mandi agent."""
+    if session.get("role") != "mandi":
+        return redirect(url_for("login_mandi"))
+    entry = PriceEntry.query.get_or_404(entry_id)
+    if entry.mandi_agent_id != session["agent_id"]:
+        flash("Unauthorised.", "danger")
+        return redirect(url_for("mandi_dashboard"))
+    db.session.delete(entry)
+    db.session.commit()
+    flash(f"Price entry for {entry.crop_name} deleted.", "info")
+    return redirect(url_for("mandi_dashboard"))
+
+
+@app.route("/edit_price/<int:entry_id>", methods=["POST"])
+def edit_price(entry_id):
+    """Update price and/or quantity_required for a price entry."""
+    if session.get("role") != "mandi":
+        return redirect(url_for("login_mandi"))
+    entry = PriceEntry.query.get_or_404(entry_id)
+    if entry.mandi_agent_id != session["agent_id"]:
+        flash("Unauthorised.", "danger")
+        return redirect(url_for("mandi_dashboard"))
+    price    = request.form.get("price", type=float)
+    qty_req  = request.form.get("quantity_required", "").strip()
+    if price and price > 0:
+        entry.price = price
+    entry.quantity_required = float(qty_req) if qty_req else None
+    db.session.commit()
+    flash(f"{entry.crop_name} updated — ₹{entry.price:,.0f}/ton.", "success")
     return redirect(url_for("mandi_dashboard"))
 
 
@@ -908,33 +1083,365 @@ def confirm_booking(booking_id):
 
 
 # =============================================================
+# ===  ROUTES — CROP DEAL (Retailer ↔ Farmer negotiation)  ===
+# =============================================================
+
+@app.route("/api/deal/available_matches")
+def deal_available_matches():
+    """
+    JSON: For the logged-in mandi agent's price entries (last 48h),
+    return farmer crops that match — same crop name, farmer quantity >= required,
+    and farmer's asking price (cost_of_production + transport) <= entry price.
+    Response: { price_entry_id: [{ crop_id, farmer_id, farmer_name, ... }] }
+    """
+    if session.get("role") != "mandi":
+        return jsonify({}), 403
+
+    agent     = MandiAgent.query.get(session["agent_id"])
+    since     = date.today() - timedelta(days=2)
+    entries   = (PriceEntry.query
+                 .filter_by(mandi_agent_id=agent.id)
+                 .filter(PriceEntry.date >= since)
+                 .all())
+
+    result = {}
+    for entry in entries:
+        if not entry.quantity_required:
+            continue
+        # Find all farmer crops with same name and quantity smaller or equal to required
+        crops = (Crop.query
+                 .filter(Crop.name.ilike(entry.crop_name))
+                 .filter(Crop.quantity <= entry.quantity_required)
+                 .all())
+        matches = []
+        for crop in crops:
+            farmer = crop.farmer
+            # Transport cost from farmer's district to mandi
+            dist  = get_distance(farmer.district, agent.location)
+            tc    = calculate_transport_cost(dist, entry.quantity_required, "Truck")["total"]
+            # Farmer's effective price = cost_of_production + transport per ton
+            farmer_price_per_ton = farmer.cost_of_production + (tc / entry.quantity_required if entry.quantity_required else 0)
+            # Only show if retailer's offered price covers farmer's cost
+            if entry.price < farmer_price_per_ton:
+                continue
+            # Check if a deal already exists for this pair
+            existing = CropDeal.query.filter_by(
+                price_entry_id=entry.id,
+                crop_id=crop.id
+            ).order_by(CropDeal.created_at.desc()).first()
+            if existing and existing.status in ("rejected_retailer", "rejected_farmer"):
+                existing = None
+            deal_status = existing.status if existing else "available"
+            deal_id     = existing.id     if existing else None
+
+
+            matches.append({
+                "crop_id":           crop.id,
+                "farmer_id":         farmer.id,
+                "farmer_name":       farmer.name,
+                "farmer_village":    farmer.village,
+                "farmer_district":   farmer.district,
+                "farmer_mobile":     farmer.mobile,
+                "crop_name":         crop.name,
+                "crop_quantity":     crop.quantity,
+                "distance_km":       dist,
+                "transport_cost":    round(tc, 0),
+                "farmer_cop":        farmer.cost_of_production,
+                "farmer_price_per_ton": round(farmer_price_per_ton, 0),
+                "retailer_price":    entry.price,
+                "deal_status":       deal_status,
+                "deal_id":           deal_id,
+            })
+        if matches:
+            result[str(entry.id)] = matches
+
+    return jsonify(result)
+
+
+@app.route("/api/deal/request", methods=["POST"])
+def deal_request():
+    """Retailer requests a deal with a specific farmer crop."""
+    if session.get("role") != "mandi":
+        return jsonify({"error": "Unauthorised"}), 403
+    data           = request.get_json()
+    price_entry_id = int(data["price_entry_id"])
+    crop_id        = int(data["crop_id"])
+
+    entry  = PriceEntry.query.get_or_404(price_entry_id)
+    crop   = Crop.query.get_or_404(crop_id)
+    agent  = MandiAgent.query.get(session["agent_id"])
+
+    # Check no active deal exists
+    existing = CropDeal.query.filter_by(
+        price_entry_id=price_entry_id, crop_id=crop_id
+    ).filter(CropDeal.status.notin_(["rejected_retailer","rejected_farmer"])).first()
+    if existing:
+        return jsonify({"error": "Deal already exists", "deal_id": existing.id, "status": existing.status})
+
+    dist = get_distance(crop.farmer.district, agent.location)
+    tc   = calculate_transport_cost(dist, entry.quantity_required or crop.quantity, "Truck")["total"]
+
+    deal = CropDeal(
+        price_entry_id=price_entry_id,
+        crop_id=crop_id,
+        farmer_id=crop.farmer_id,
+        agent_id=session["agent_id"],
+        status="requested",
+        transport_cost=round(tc, 2),
+    )
+    db.session.add(deal)
+    db.session.commit()
+    return jsonify({"ok": True, "deal_id": deal.id, "status": "requested"})
+
+
+@app.route("/api/deal/retailer_reject", methods=["POST"])
+def deal_retailer_reject():
+    """Retailer rejects / cancels a deal request."""
+    if session.get("role") != "mandi":
+        return jsonify({"error": "Unauthorised"}), 403
+    deal_id = int(request.get_json()["deal_id"])
+    deal    = CropDeal.query.get_or_404(deal_id)
+    deal.status = "rejected_retailer"
+    db.session.commit()
+    return jsonify({"ok": True, "status": "rejected_retailer"})
+
+
+@app.route("/api/deal/farmer_accept", methods=["POST"])
+def deal_farmer_accept():
+    """Farmer accepts a deal request — status becomes 'accepted'."""
+    if session.get("role") != "farmer":
+        return jsonify({"error": "Unauthorised"}), 403
+    deal_id = int(request.get_json()["deal_id"])
+    deal    = CropDeal.query.get_or_404(deal_id)
+    deal.status = "accepted"
+    db.session.commit()
+    return jsonify({"ok": True, "status": "accepted"})
+
+
+@app.route("/api/deal/farmer_reject", methods=["POST"])
+def deal_farmer_reject():
+    """Farmer rejects a deal request — status becomes 'rejected_farmer'."""
+    if session.get("role") != "farmer":
+        return jsonify({"error": "Unauthorised"}), 403
+    deal_id = int(request.get_json()["deal_id"])
+    deal    = CropDeal.query.get_or_404(deal_id)
+    deal.status = "rejected_farmer"
+    db.session.commit()
+    return jsonify({"ok": True, "status": "rejected_farmer"})
+
+
+@app.route("/api/deal/crop_deals")
+def deal_crop_deals():
+    """
+    JSON: Return all active deals relevant to the logged-in farmer.
+    Matches by crop_name across all of this farmer's crops so the badge
+    appears even when the retailer booked against a different farmer's crop
+    of the same name.
+    """
+    if session.get("role") != "farmer":
+        return jsonify({}), 403
+
+    farmer_id = session["farmer_id"]
+    my_crops  = Crop.query.filter_by(farmer_id=farmer_id).all()
+
+    crop_by_name = {c.name.lower(): c for c in my_crops}
+    crop_by_id   = {c.id: c for c in my_crops}
+
+    # All non-rejected deals in the system
+    all_deals = (CropDeal.query
+                 .filter(CropDeal.status.notin_(["rejected_retailer", "rejected_farmer"]))
+                 .all())
+
+    priority = {"requested": 1, "accepted": 2}
+    result   = {}
+
+    for d in all_deals:
+        # Try to match this deal to one of my crops
+        matched_crop = crop_by_id.get(d.crop_id)
+        if not matched_crop:
+            entry_name = d.price_entry.crop_name.lower() if d.price_entry else ""
+            matched_crop = crop_by_name.get(entry_name)
+        if not matched_crop:
+            continue
+
+        key      = str(matched_crop.id)
+        existing = result.get(key)
+        if existing and priority.get(existing["status"], 0) >= priority.get(d.status, 0):
+            continue   # keep higher-priority status
+
+        agent = d.agent
+        entry = d.price_entry
+        result[key] = {
+            "deal_id":        d.id,
+            "status":         d.status,
+            "agent_name":     agent.name      if agent else "",
+            "mandi":          agent.mandi     if agent else "",
+            "location":       agent.location  if agent else "",
+            "contact":        agent.contact   if agent else "",
+            "crop_name":      entry.crop_name if entry else matched_crop.name,
+            "price_per_ton":  entry.price     if entry else 0,
+            "qty_required":   entry.quantity_required if entry else None,
+            "transport_cost": d.transport_cost,
+        }
+
+    return jsonify(result)
+
+
+@app.route("/api/deal/farmer_matches")
+def deal_farmer_matches():
+    """
+    JSON: For the logged-in farmer's crops, return price entries posted by
+    mandi agents that match — same crop name, retailer qty_required <= farmer qty,
+    and retailer offered price >= farmer's asking price (COP + transport).
+    Response: { price_entry_id: { crop_id, crop_name, qty_available, dist, tc,
+                                   farmer_price_per_ton, retailer_price,
+                                   retailer_name, retailer_mandi, retailer_location,
+                                   retailer_contact, qty_required, deal_status, deal_id } }
+    """
+    if session.get("role") != "farmer":
+        return jsonify({}), 403
+
+    farmer  = Farmer.query.get(session["farmer_id"])
+    crops   = Crop.query.filter_by(farmer_id=farmer.id).all()
+    since   = date.today() - timedelta(days=2)
+    entries = (PriceEntry.query
+               .filter(PriceEntry.date >= since)
+               .filter(PriceEntry.quantity_required.isnot(None))
+               .all())
+
+    result = {}
+    for entry in entries:
+        if not entry.quantity_required:
+            continue
+        agent = entry.agent
+        if not agent:
+            continue
+        # Find the farmer's crop matching this entry's crop name with quantity <= required
+        matching_crop = None
+        for crop in crops:
+            if crop.name.lower() == entry.crop_name.lower() and crop.quantity <= entry.quantity_required:
+                matching_crop = crop
+                break
+
+        if not matching_crop:
+            continue
+        # Calculate transport cost & farmer's minimum selling price
+        dist = get_distance(farmer.district, agent.location)
+        qty  = entry.quantity_required
+        tc   = calculate_transport_cost(dist, qty, "Truck")["total"]
+        tc_breakdown = calculate_transport_cost(dist, qty, "Truck")
+        farmer_price_per_ton = farmer.cost_of_production + (tc / qty if qty else 0)
+        # Only show if retailer's price covers farmer's cost
+        if entry.price < farmer_price_per_ton:
+            continue
+        # Check existing deal
+        existing = CropDeal.query.filter_by(
+            price_entry_id=entry.id, crop_id=matching_crop.id
+        ).order_by(CropDeal.created_at.desc()).first()
+        if existing and existing.status in ("rejected_retailer", "rejected_farmer"):
+            existing = None
+        deal_status = existing.status if existing else "available"
+        deal_id     = existing.id     if existing else None
+
+        result[str(entry.id)] = {
+            "crop_id":              matching_crop.id,
+            "crop_name":            matching_crop.name,
+            "qty_available":        matching_crop.quantity,
+            "farmer_village":       farmer.village,
+            "farmer_district":      farmer.district,
+            "distance_km":          dist,
+            "transport_cost":       round(tc, 0),
+            "transport_breakdown": {
+                "trips":        tc_breakdown["trips"],
+                "fuel_cost":    round(tc_breakdown["fuel_cost"], 0),
+                "loading_cost": round(tc_breakdown["loading_cost"], 0),
+                "toll_cost":    round(tc_breakdown.get("toll_cost", 0), 0),
+                "driver_cost":  round(tc_breakdown.get("driver_cost", 0), 0),
+            },
+            "farmer_cop":           farmer.cost_of_production,
+            "farmer_price_per_ton": round(farmer_price_per_ton, 0),
+            "retailer_price":       entry.price,
+            "qty_required":         entry.quantity_required,
+            "retailer_name":        agent.name,
+            "retailer_mandi":       agent.mandi,
+            "retailer_location":    agent.location,
+            "retailer_contact":     agent.contact,
+            "deal_status":          deal_status,
+            "deal_id":              deal_id,
+        }
+
+    return jsonify(result)
+
+
+@app.route("/api/deal/farmer_book", methods=["POST"])
+def deal_farmer_book():
+    """Farmer initiates a deal request — creates CropDeal with status='requested'."""
+    if session.get("role") != "farmer":
+        return jsonify({"error": "Unauthorised"}), 403
+    data           = request.get_json()
+    price_entry_id = int(data["price_entry_id"])
+    crop_id        = int(data["crop_id"])
+
+    entry  = PriceEntry.query.get_or_404(price_entry_id)
+    crop   = Crop.query.get_or_404(crop_id)
+    if crop.farmer_id != session["farmer_id"]:
+        return jsonify({"error": "Unauthorised"}), 403
+
+    # Check no active deal exists
+    existing = CropDeal.query.filter_by(
+        price_entry_id=price_entry_id, crop_id=crop_id
+    ).filter(CropDeal.status.notin_(["rejected_retailer", "rejected_farmer"])).first()
+    if existing:
+        return jsonify({"error": "Deal already exists", "deal_id": existing.id, "status": existing.status})
+
+    agent = entry.agent
+    dist  = get_distance(crop.farmer.district, agent.location)
+    tc    = calculate_transport_cost(dist, entry.quantity_required or crop.quantity, "Truck")["total"]
+
+    deal = CropDeal(
+        price_entry_id=price_entry_id,
+        crop_id=crop_id,
+        farmer_id=session["farmer_id"],
+        agent_id=entry.mandi_agent_id,
+        status="requested",
+        transport_cost=round(tc, 2),
+    )
+    db.session.add(deal)
+    db.session.commit()
+    return jsonify({"ok": True, "deal_id": deal.id, "status": "requested"})
+
+
+# =============================================================
 # ===  ROUTES — TRANSPORT COST CALCULATOR (API)  =============
 # =============================================================
 
 @app.route("/api/transport_cost")
 def api_transport_cost():
     """
-    JSON API: Calculate transport cost.
+    JSON API: Calculate accurate transport cost with itemised breakdown.
     Query params: from_city, to_city, quantity_tons, mode
-    Returns: { distance_km, rate, cost }
     """
-    from_city = request.args.get("from_city", "Kolar")
+    from_city = request.args.get("from_city", "Tumakuru")
     to_city   = request.args.get("to_city",   "Bengaluru")
     qty       = float(request.args.get("quantity_tons", 1))
     mode      = request.args.get("mode", "Truck")
 
     dist      = get_distance(from_city, to_city)
-    cost      = calculate_transport_cost(dist, qty, mode)
-    rate      = Config.TRANSPORT_RATES.get(mode, 18)
+    breakdown = calculate_transport_cost(dist, qty, mode)
 
     return jsonify({
-        "from_city":    from_city,
-        "to_city":      to_city,
-        "distance_km":  dist,
+        "from_city":     from_city,
+        "to_city":       to_city,
+        "distance_km":   dist,
         "quantity_tons": qty,
-        "mode":         mode,
-        "rate_per_km_ton": rate,
-        "total_cost":   cost
+        "mode":          mode,
+        "trips":         breakdown["trips"],
+        "capacity_ton":  breakdown["capacity_ton"],
+        "fuel_cost":     breakdown["fuel_cost"],
+        "loading_cost":  breakdown["loading_cost"],
+        "toll_cost":     breakdown["toll_cost"],
+        "driver_cost":   breakdown["driver_cost"],
+        "total_cost":    breakdown["total"],
     })
 
 

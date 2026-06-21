@@ -2,133 +2,108 @@
 {% block title %}Market Prices — KSHETRA{% endblock %}
 
 {% block content %}
-<div class="container py-4">
 
-  <!-- Header -->
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
-    <div>
-      <h2 class="fw-700 mb-1">
-        <i class="bi bi-graph-up me-2 text-green"></i>Today's Market Prices
-      </h2>
-      <p class="text-muted mb-0">Latest crop prices posted by mandi agents across Karnataka</p>
+<!-- Page Header -->
+<div class="page-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{{ url_for('index') }}">Home</a>
+      <span>/</span>
+      <span>Market Prices</span>
     </div>
-    {% if session.get('role') == 'mandi' %}
-    <a href="{{ url_for('mandi_dashboard') }}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
-    </a>
-    {% elif session.get('role') == 'farmer' %}
-    <a href="{{ url_for('farmer_dashboard') }}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
-    </a>
-    {% endif %}
-  </div>
-
-  <!-- Price Cards -->
-  {% if entries %}
-
-  <!-- Group by crop name for quick filter -->
-  {% set crop_names = entries | map(attribute='crop_name') | unique | list %}
-
-  <!-- Quick Filter Chips -->
-  <div class="d-flex flex-wrap gap-2 mb-4">
-    <button class="btn btn-sm btn-green" onclick="filterTable('')">All</button>
-    {% for name in crop_names %}
-    <button class="btn btn-sm btn-outline-secondary" onclick="filterTable('{{ name }}')">
-      {{ name }}
-    </button>
-    {% endfor %}
-  </div>
-
-  <!-- Price Table -->
-  <div class="section-card">
-    <div class="section-card-header">
-      <i class="bi bi-table me-2"></i>Price Listings
-      <span class="ms-auto text-muted small">Last 48 hours · {{ entries|length }} entries</span>
-    </div>
-    <div class="section-card-body p-0">
-      <div class="table-responsive">
-        <table class="table kshetra-table mb-0" id="priceTable">
-          <thead>
-            <tr>
-              <th>Crop</th>
-              <th>Mandi</th>
-              <th>Location</th>
-              <th>Price (₹/ton)</th>
-              <th>Date</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in entries %}
-            <tr data-crop="{{ e.crop_name }}">
-              <td>
-                <span class="crop-tag">{{ e.crop_name }}</span>
-              </td>
-              <td class="fw-600">{{ e.agent.mandi if e.agent else '—' }}</td>
-              <td class="text-muted">{{ e.agent.location if e.agent else '—' }}</td>
-              <td>
-                <span class="price-pill">₹{{ '{:,.0f}'.format(e.price) }}</span>
-              </td>
-              <td class="text-muted small">{{ e.date.strftime('%d %b %Y') }}</td>
-              <td>
-                <a href="{{ url_for('price_history', crop_id=e.crop_id) }}"
-                   class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-graph-up me-1"></i>History
-                </a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <h1>Market Prices</h1>
+        <p>Latest crop prices posted by mandi agents across Karnataka — last 48 hours</p>
       </div>
+      {% if session.get('role') == 'mandi' %}
+      <a href="{{ url_for('mandi_dashboard') }}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> My Mandi
+      </a>
+      {% elif session.get('role') == 'farmer' %}
+      <a href="{{ url_for('farmer_dashboard') }}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> My Crops
+      </a>
+      {% endif %}
     </div>
   </div>
-
-  {% else %}
-  <div class="section-card">
-    <div class="section-card-body">
-      <div class="empty-state py-5">
-        <div class="empty-state-icon"><i class="bi bi-tag"></i></div>
-        <h5>No prices posted yet today</h5>
-        <p class="text-muted mb-4">
-          Mandi agents haven't posted today's prices yet.
-          Check back later or view price history.
-        </p>
-        {% if session.get('role') == 'mandi' %}
-        <a href="{{ url_for('mandi_dashboard') }}" class="btn btn-green">
-          <i class="bi bi-plus me-1"></i>Post a Price
-        </a>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-function filterTable(cropName) {
-  const rows = document.querySelectorAll('#priceTable tbody tr');
-  rows.forEach(function(row) {
-    if (!cropName || row.dataset.crop === cropName) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
-  });
-  // Update active button
-  document.querySelectorAll('button[onclick^="filterTable"]').forEach(function(btn) {
-    btn.classList.remove('btn-green');
-    btn.classList.add('btn-outline-secondary');
-  });
-  const clicked = [...document.querySelectorAll('button[onclick^="filterTable"]')]
-    .find(b => b.onclick.toString().includes(`'${cropName}'`));
-  if (clicked) {
-    clicked.classList.add('btn-green');
-    clicked.classList.remove('btn-outline-secondary');
-  }
-}
-</script>
+<div class="section-sm">
+  <div class="container">
+
+    {% if entries %}
+
+    <!-- Crop filter chips -->
+    {% set crop_names = entries | map(attribute='crop_name') | unique | list %}
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;">
+      <button class="btn btn-primary btn-sm filter-btn" data-filter="" onclick="filterCrops('')">
+        All Crops
+      </button>
+      {% for name in crop_names %}
+      <button class="btn btn-outline btn-sm filter-btn" data-filter="{{ name }}"
+              onclick="filterCrops('{{ name }}')">
+        {{ name }}
+      </button>
+      {% endfor %}
+    </div>
+
+    <!-- Price table -->
+    <div class="table-wrap">
+      <table class="data-table" id="priceTable">
+        <thead>
+          <tr>
+            <th>Crop</th>
+            <th>Mandi</th>
+            <th>Location</th>
+            <th>Price (₹/ton)</th>
+            <th>Date</th>
+            <th>History</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr data-crop="{{ e.crop_name }}">
+            <td><span class="tag tag-green">{{ e.crop_name }}</span></td>
+            <td style="font-weight:600;">{{ e.agent.mandi if e.agent else '—' }}</td>
+            <td style="color:var(--muted);">{{ e.agent.location if e.agent else '—' }}</td>
+            <td class="price-chip">₹{{ '{:,.0f}'.format(e.price) }}</td>
+            <td style="color:var(--muted);font-size:.85rem;">{{ e.date.strftime('%d %b %Y') }}</td>
+            <td>
+              {% if e.crop_id %}
+                <a href="{{ url_for('price_history', crop_id=e.crop_id) }}"
+                   class="btn btn-outline btn-sm">
+                  <i class="bi bi-graph-up"></i> 30-day chart
+                </a>
+              {% else %}
+                <span style="font-size:.82rem;color:var(--muted);">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+
+    <!-- Empty state -->
+    <div class="empty-state" style="background:var(--white);border:1px solid var(--border);
+                                    border-radius:14px;padding:64px 24px;">
+      <div class="empty-icon"><i class="bi bi-tag"></i></div>
+      <h3>No prices posted yet today</h3>
+      <p>Mandi agents haven't posted prices in the last 48 hours. Check back soon.</p>
+      {% if session.get('role') == 'mandi' %}
+      <a href="{{ url_for('mandi_dashboard') }}" class="btn btn-primary">
+        <i class="bi bi-plus"></i> Post a Price
+      </a>
+      {% endif %}
+    </div>
+
+    {% endif %}
+
+  </div>
+</div>
+
 {% endblock %}

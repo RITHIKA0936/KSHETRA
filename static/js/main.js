@@ -64,6 +64,8 @@ function calcTransportCost() {
   var mode = document.getElementById('tc_mode').value;
   var out  = document.getElementById('tc_result');
 
+  out.innerHTML = '<p style="font-size:.82rem;color:var(--muted);margin-top:8px;">Calculating...</p>';
+
   fetch('/api/transport_cost?from_city=' + encodeURIComponent(from) +
         '&to_city=' + encodeURIComponent(to) +
         '&quantity_tons=' + qty +
@@ -71,15 +73,51 @@ function calcTransportCost() {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       out.innerHTML =
-        '<div class="stat-row mt-16">' +
-          mkStat(d.distance_km + ' km', 'Distance') +
-          mkStat('₹' + d.rate_per_km_ton + '/km/t', 'Rate') +
-          mkStat('₹' + fmt(d.total_cost), 'Total Cost') +
+        '<div style="margin-top:14px;background:var(--bg);border:1px solid var(--border);' +
+        'border-radius:10px;overflow:hidden;">' +
+
+        // Header
+        '<div style="background:var(--green-dark);color:#fff;padding:10px 14px;' +
+        'font-size:.8rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;">' +
+          '<span>Cost Breakdown · ' + d.mode + '</span>' +
+          '<span>' + d.distance_km + ' km · ' + d.trips + ' trip' + (d.trips>1?'s':'') +
+          ' · ' + d.capacity_ton + 't/trip</span>' +
+        '</div>' +
+
+        // Breakdown rows
+        '<div style="padding:12px 14px;display:flex;flex-direction:column;gap:7px;">' +
+          row('⛽ Fuel / Fodder',       d.fuel_cost) +
+          row('📦 Loading & Unloading', d.loading_cost) +
+          (d.toll_cost > 0 ? row('🛣️ Toll / Road Tax', d.toll_cost) : '') +
+          (d.driver_cost > 0 ? row('👤 Driver Allowance', d.driver_cost) : '') +
+        '</div>' +
+
+        // Total
+        '<div style="border-top:2px solid var(--border);padding:12px 14px;' +
+        'display:flex;justify-content:space-between;align-items:center;">' +
+          '<span style="font-weight:700;font-size:.9rem;">Total Cost</span>' +
+          '<span style="font-family:\'Playfair Display\',serif;font-size:1.4rem;' +
+          'font-weight:700;color:var(--green-dark);">₹' + fmt(d.total_cost) + '</span>' +
+        '</div>' +
+
+        // Per-ton rate
+        '<div style="padding:6px 14px 12px;font-size:.75rem;color:var(--muted);">' +
+          '₹' + fmt(Math.round(d.total_cost / d.quantity_tons)) + ' per ton &nbsp;·&nbsp; ' +
+          '₹' + fmt(Math.round(d.total_cost / d.distance_km)) + ' per km' +
+        '</div>' +
+
         '</div>';
     })
     .catch(function () {
       out.innerHTML = '<p class="text-red mt-8" style="font-size:.85rem">Could not fetch — check connection.</p>';
     });
+}
+
+function row(label, amount) {
+  return '<div style="display:flex;justify-content:space-between;font-size:.83rem;">' +
+         '<span style="color:var(--muted);">' + label + '</span>' +
+         '<span style="font-weight:600;">₹' + fmt(amount) + '</span>' +
+         '</div>';
 }
 
 function mkStat(val, label) {

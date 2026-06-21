@@ -16,8 +16,8 @@ def recommend_crop(land_acres, possible_crops):
             print(f"{crop} data not found")
             continue
 
-        yield_per_acre = crop_data["Expected_Yield_Ton_Per_Acre"].values[0]
-        price = crop_data["Average_Price_Per_Ton"].values[0]
+        yield_per_acre = crop_data["Average_Yield_Ton_Per_Acre"].values[0]
+        price = crop_data["Selling_Price_Per_Ton"].values[0]
 
         production = land_acres * yield_per_acre
 
@@ -31,6 +31,9 @@ def recommend_crop(land_acres, possible_crops):
 
 
     result_df = pd.DataFrame(results)
+
+    if result_df.empty:
+        return result_df, {}
 
     best_crop = result_df.loc[
         result_df["Expected Revenue (₹)"].idxmax()

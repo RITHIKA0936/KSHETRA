@@ -86,8 +86,9 @@ class PriceEntry(db.Model):
     id             = db.Column(db.Integer, primary_key=True)
     crop_id        = db.Column(db.Integer, db.ForeignKey("crop.id"),        nullable=True)
     mandi_agent_id = db.Column(db.Integer, db.ForeignKey("mandi_agent.id"), nullable=False)
-    crop_name      = db.Column(db.String(100), nullable=False)              # denormalized for easy queries
-    price          = db.Column(db.Float,   nullable=False)                  # ₹ per ton
+    crop_name      = db.Column(db.String(100), nullable=False)
+    price          = db.Column(db.Float,   nullable=False)
+    quantity_required = db.Column(db.Float, nullable=True)              # tons the mandi can accept
     date           = db.Column(db.Date,    default=datetime.utcnow().date)
 
     def __repr__(self):
@@ -136,3 +137,31 @@ class PreBooking(db.Model):
 
     def __repr__(self):
         return f"<PreBooking {self.crop_name} {self.quantity}t by Farmer#{self.farmer_id}>"
+
+
+# -------------------------------------------------------------
+# CropDeal Model
+# Tracks the negotiation between a retailer's price entry and a farmer's crop.
+# States: pending → requested → accepted / rejected_by_farmer / rejected_by_retailer
+# -------------------------------------------------------------
+class CropDeal(db.Model):
+    __tablename__ = "crop_deal"
+
+    id             = db.Column(db.Integer, primary_key=True)
+    price_entry_id = db.Column(db.Integer, db.ForeignKey("price_entry.id"), nullable=False)
+    crop_id        = db.Column(db.Integer, db.ForeignKey("crop.id"),         nullable=False)
+    farmer_id      = db.Column(db.Integer, db.ForeignKey("farmer.id"),       nullable=False)
+    agent_id       = db.Column(db.Integer, db.ForeignKey("mandi_agent.id"),  nullable=False)
+    # Status flow: available → requested → accepted | rejected_farmer | rejected_retailer
+    status         = db.Column(db.String(30), default="requested", nullable=False)
+    transport_cost = db.Column(db.Float,   nullable=True)   # calculated at deal creation
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    price_entry = db.relationship("PriceEntry", backref="deals")
+    crop        = db.relationship("Crop",       backref="deals")
+    farmer      = db.relationship("Farmer",     backref="deals")
+    agent       = db.relationship("MandiAgent", backref="deals")
+
+    def __repr__(self):
+        return f"<CropDeal {self.status} crop#{self.crop_id} price#{self.price_entry_id}>"

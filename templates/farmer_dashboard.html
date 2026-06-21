@@ -1,248 +1,1368 @@
 {% extends "base.html" %}
-{% block title %}My Crops — KSHETRA{% endblock %}
+{% block title %}My Farm — KSHETRA{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ============================================================
+   SIDEBAR LAYOUT
+   ============================================================ */
+.farm-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: calc(100vh - 64px);
+  background: var(--bg);
+}
+
+/* ---- sidebar ---- */
+.farm-sidebar {
+  background: #fff;
+  border-right: 1px solid var(--border);
+  padding: 28px 0;
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-farmer {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.sidebar-avatar {
+  width: 48px; height: 48px;
+  background: var(--green-muted);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; color: var(--green);
+  margin-bottom: 10px;
+}
+
+.sidebar-name  { font-size: .95rem; font-weight: 700; line-height: 1.2; }
+.sidebar-meta  { font-size: .75rem; color: var(--muted); margin-top: 3px; }
+
+.sidebar-nav   { padding: 0 12px; }
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  font-size: .9rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  transition: background .15s, color .15s;
+  margin-bottom: 2px;
+  text-decoration: none;
+}
+
+.sidebar-item:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.sidebar-item.active {
+  background: var(--green-muted);
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
+.sidebar-item i { font-size: 1.05rem; flex-shrink: 0; }
+
+.sidebar-badge {
+  margin-left: auto;
+  background: var(--red);
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 30px;
+  flex-shrink: 0;
+}
+
+.sidebar-section-label {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 12px 12px 6px;
+  opacity: .6;
+}
+
+/* ---- main content area ---- */
+.farm-main {
+  padding: 32px 36px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* ---- tab panels ---- */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---- page title inside content ---- */
+.content-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.content-sub { font-size: .9rem; color: var(--muted); margin-bottom: 28px; }
+
+/* ---- NDVI bar ---- */
+.ndvi-strip {
+  background: var(--blue-muted);
+  border: 1px solid #90caf9;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+/* ---- crop grid ---- */
+.crop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 16px; }
+
+.crop-tile {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  transition: box-shadow .2s, transform .2s;
+}
+.crop-tile:hover { box-shadow: 0 4px 16px rgba(0,0,0,.07); transform: translateY(-2px); }
+.crop-tile-qty   { font-family:'Playfair Display',serif; font-size:1.8rem; color:var(--green-dark); line-height:1; }
+.crop-tile-label { font-size:.75rem; color:var(--muted); margin-bottom:12px; }
+.shelf-bar       { height:4px; background:var(--border); border-radius:4px; overflow:hidden; margin-bottom:14px; }
+.shelf-fill      { height:100%; border-radius:4px; background:var(--green); }
+.shelf-fill.urgent { background:var(--red); }
+.shelf-fill.medium { background:var(--amber); }
+
+/* ---- add crop form box ---- */
+.form-box {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 640px;
+}
+
+/* ---- section divider ---- */
+.sdiv {
+  display: flex; align-items: center; gap: 12px;
+  margin: 32px 0 18px;
+}
+.sdiv h3   { font-size:1rem; font-weight:700; white-space:nowrap; margin:0; }
+.sdiv hr   { flex:1; border:none; border-top:1px solid var(--border); margin:0; }
+
+/* ---- disruption cards (reused from disruption page) ---- */
+.dis-card {
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  padding:18px 20px; display:grid; grid-template-columns:auto 1fr auto;
+  gap:16px; align-items:flex-start; transition:box-shadow .2s;
+}
+.dis-card:hover { box-shadow:0 3px 14px rgba(0,0,0,.06); }
+.dtype-icon { width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0; }
+.dtype-flood    { background:#e3f2fd; }
+.dtype-road     { background:#fff3e0; }
+.dtype-strike   { background:#fce4ec; }
+.dtype-festival { background:#f3e5f5; }
+.dtype-accident { background:#fbe9e7; }
+.dtype-other    { background:#f5f5f5; }
+.dis-route { font-size:.98rem; font-weight:700; margin-bottom:5px; }
+.dis-meta  { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
+.dis-desc  { font-size:.83rem; color:var(--muted); }
+.dis-dates { font-size:.75rem; color:var(--muted); margin-top:4px; }
+
+/* ---- booking rows (reused) ---- */
+.booking-row {
+  background:#fff; border:1px solid var(--border); border-radius:10px;
+  padding:16px 18px; display:grid; grid-template-columns:1fr auto;
+  gap:12px; align-items:center; transition:box-shadow .2s;
+}
+.booking-row:hover { box-shadow:0 3px 12px rgba(0,0,0,.05); }
+.booking-crop-name { font-size:.95rem; font-weight:700; margin-bottom:3px; }
+.booking-meta { display:flex; flex-wrap:wrap; gap:10px; font-size:.8rem; color:var(--muted); }
+.booking-meta i { color:var(--green); }
+
+/* ---- steps (prebooking) ---- */
+.steps { display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:24px; }
+.step  { flex:1; padding:12px 14px; font-size:.8rem; display:flex; align-items:center; gap:8px; background:var(--bg); border-right:1px solid var(--border); }
+.step:last-child { border-right:none; }
+.step.done   { background:var(--green-muted); }
+.step.active { background:#fff; font-weight:700; }
+.step-num {
+  width:24px;height:24px; border-radius:50%; background:var(--border); color:var(--muted);
+  display:flex;align-items:center;justify-content:center; font-size:.72rem; font-weight:700; flex-shrink:0;
+}
+.step.done .step-num   { background:var(--green); color:#fff; }
+.step.active .step-num { background:var(--green-dark); color:#fff; }
+
+/* ---- booking form card ---- */
+.booking-form-card { background:#fff; border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:32px; }
+.booking-form-top  { background:linear-gradient(135deg,var(--green-dark),#388e3c); color:#fff; padding:20px 24px; }
+.booking-form-top h3 { font-size:1rem; font-weight:700; margin-bottom:2px; }
+.booking-form-top p  { font-size:.82rem; opacity:.8; margin:0; }
+.booking-form-body   { padding:24px; }
+
+/* ---- all-clear ---- */
+.all-clear { background:#e8f5e9; border:1px solid #a5d6a7; border-radius:12px; padding:28px 20px; text-align:center; color:var(--green-dark); }
+.all-clear-icon { font-size:2rem; margin-bottom:8px; }
+
+/* ---- alert-banner ---- */
+.alert-banner { background:linear-gradient(135deg,#b71c1c,#c62828); color:#fff; border-radius:12px; padding:16px 20px; display:flex; align-items:center; gap:14px; margin-bottom:24px; flex-wrap:wrap; }
+.alert-banner h3 { font-size:1rem; font-weight:700; margin-bottom:2px; }
+.alert-banner p  { font-size:.82rem; opacity:.85; margin:0; }
+
+/* ---- price filter chips ---- */
+.filter-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+
+/* ---- responsive ---- */
+@media (max-width: 900px) {
+  .farm-layout { grid-template-columns: 1fr; }
+  .farm-sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0 0;
+  }
+  .sidebar-farmer { padding: 0 16px 16px; }
+  .sidebar-nav { display: flex; gap: 4px; padding: 0 12px 12px; overflow-x: auto; }
+  .sidebar-item { white-space: nowrap; flex-shrink: 0; }
+  .sidebar-section-label { display: none; }
+  .farm-main { padding: 20px 16px; }
+}
+
+@media (max-width: 860px) {
+  .platform-grid { grid-template-columns: 1fr !important; }
+  .below-model-grid { grid-template-columns: 1fr !important; }
+  .forms-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 600px) {
+  .steps { flex-direction: column; }
+  .step  { border-right: none; border-bottom: 1px solid var(--border); }
+  .step:last-child { border-bottom: none; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
+<div class="farm-layout">
 
-<!-- Page Header -->
-<div class="page-header">
-  <div class="container">
-    <div class="breadcrumb">
-      <a href="{{ url_for('index') }}">Home</a>
-      <span>/</span>
-      <span>My Crops</span>
-    </div>
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
-      <div>
-        <h1>My Crops</h1>
-        <p>
-          Welcome back, <strong>{{ farmer.name }}</strong> ·
-          {{ farmer.village }}, {{ farmer.district }} ·
-          Production cost: <strong>₹{{ '{:,.0f}'.format(farmer.cost_of_production) }}/ton</strong>
-        </p>
-      </div>
-      <a href="{{ url_for('recommend_mandi') }}" class="btn btn-primary">
-        <i class="bi bi-stars"></i> Get Mandi Recommendations
-      </a>
-    </div>
-  </div>
-</div>
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="farm-sidebar">
 
-<div class="section-sm">
-  <div class="container">
-
-    <!-- Satellite Health Strip -->
-    <div style="background:var(--blue-muted);border:1px solid #90caf9;border-radius:12px;
-                padding:16px 22px;margin-bottom:36px;display:flex;align-items:center;
-                gap:20px;flex-wrap:wrap;">
-      <div>
-        <div style="font-size:.72rem;font-weight:700;color:var(--blue);letter-spacing:.08em;
-                    text-transform:uppercase;margin-bottom:2px;">
-          <i class="bi bi-satellite me-1"></i> Satellite Crop Health · {{ farmer.district }}
-        </div>
-        <div style="font-size:1.15rem;font-weight:700;color:#0d47a1;">
-          {{ ndvi.health }}
-          <span style="font-size:.85rem;font-weight:400;color:var(--blue);margin-left:6px;">NDVI {{ ndvi.ndvi }}</span>
-        </div>
-      </div>
-      <div style="flex:1;min-width:160px;">
-        <div style="height:8px;background:rgba(0,0,0,.08);border-radius:8px;overflow:hidden;">
-          <div style="height:100%;width:{{ [ndvi.ndvi * 100, 100]|min }}%;
-                      background:linear-gradient(90deg,#ef5350,#ffb300,#43a047);border-radius:8px;
-                      transition:width .6s;"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--blue);margin-top:3px;">
-          <span>0 Stressed</span><span>1 Excellent</span>
-        </div>
-      </div>
-      {% if disruptions %}
-      <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;
-                  padding:10px 14px;font-size:.84rem;color:var(--red);">
-        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-        <strong>{{ disruptions|length }} route alert{{ 's' if disruptions|length > 1 }}.</strong>
-        <a href="{{ url_for('view_disruptions') }}" style="color:var(--red);font-weight:600;margin-left:4px;">
-          View →
-        </a>
-      </div>
-      {% endif %}
+    <!-- Farmer info -->
+    <div class="sidebar-farmer">
+      <div class="sidebar-avatar">🌾</div>
+      <div class="sidebar-name">{{ farmer.name }}</div>
+      <div class="sidebar-meta">{{ farmer.village }}, {{ farmer.district }}</div>
+      <div class="sidebar-meta" style="margin-top:4px;">₹{{ '{:,.0f}'.format(farmer.cost_of_production) }}/ton prod. cost</div>
     </div>
 
-    <!-- Quick links row -->
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:40px;">
-      <a href="{{ url_for('recommend_mandi') }}" class="btn btn-primary">
+    <!-- Nav items -->
+    <nav class="sidebar-nav">
+
+      <div class="sidebar-section-label">Navigation</div>
+
+      <button class="sidebar-item {% if active_tab == 'platform' %}active{% endif %}"
+              onclick="switchTab('platform', this)">
+        <i class="bi bi-house-fill"></i> Platform
+      </button>
+
+      <button class="sidebar-item {% if active_tab == 'prices' %}active{% endif %}"
+              onclick="switchTab('prices', this)">
+        <i class="bi bi-graph-up"></i> Market Prices
+      </button>
+
+      <button class="sidebar-item {% if active_tab == 'prebooking' %}active{% endif %}"
+              onclick="switchTab('prebooking', this)">
+        <i class="bi bi-calendar-check"></i> Pre-Book Slot
+      </button>
+
+      <button class="sidebar-item {% if active_tab == 'alerts' %}active{% endif %}"
+              onclick="switchTab('alerts', this)">
+        <i class="bi bi-exclamation-triangle"></i> Route Alerts
+        {% if active_disruptions %}
+        <span class="sidebar-badge">{{ active_disruptions|length }}</span>
+        {% endif %}
+      </button>
+
+      <div class="sidebar-section-label" style="margin-top:12px;">Quick Actions</div>
+
+      <a href="{{ url_for('recommend_mandi') }}" class="sidebar-item">
         <i class="bi bi-stars"></i> Recommendations
       </a>
-      <a href="{{ url_for('view_prices') }}" class="btn btn-outline">
-        <i class="bi bi-graph-up"></i> Market Prices
-      </a>
-      <a href="{{ url_for('prebooking') }}" class="btn btn-outline">
-        <i class="bi bi-calendar-plus"></i> Pre-Book Slot
-      </a>
-      <a href="{{ url_for('view_disruptions') }}" class="btn btn-outline">
-        <i class="bi bi-exclamation-triangle"></i> Route Alerts
-      </a>
-    </div>
 
-    <!-- ===== CROPS ===== -->
-    <div style="display:flex;align-items:center;justify-content:space-between;
-                flex-wrap:wrap;gap:12px;margin-bottom:20px;">
-      <h2 style="font-size:1.25rem;font-weight:700;">
-        Your Crops
-        <span style="font-size:.85rem;color:var(--muted);font-weight:400;margin-left:8px;">
-          {{ crops|length }} listed
-        </span>
-      </h2>
-    </div>
+      <a href="{{ url_for('logout') }}" class="sidebar-item" style="color:var(--red);">
+        <i class="bi bi-box-arrow-right"></i> Logout
+      </a>
 
-    {% if crops %}
-    <div class="crop-grid" style="margin-bottom:40px;">
-      {% for crop in crops %}
-      <div class="crop-tile">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-          <span class="tag tag-green">{{ crop.name }}</span>
-          <span class="tag {% if crop.shelf_life_days <= 3 %}tag-red{% elif crop.shelf_life_days <= 7 %}tag-amber{% else %}tag-grey{% endif %}">
-            {{ crop.shelf_life_days }}d shelf
-          </span>
-        </div>
-        <div class="crop-tile-qty">{{ crop.quantity }}</div>
-        <div class="crop-tile-label">tons available</div>
-        <div class="shelf-indicator">
-          <div class="shelf-indicator-fill {% if crop.shelf_life_days <= 3 %}urgent{% elif crop.shelf_life_days <= 7 %}medium{% endif %}"
-               style="width:{{ [crop.shelf_life_days / 30 * 100, 100]|min }}%;"></div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <a href="{{ url_for('recommend_mandi', crop_id=crop.id) }}"
-             class="btn btn-primary btn-sm" style="flex:1;justify-content:center;">
-            <i class="bi bi-stars"></i> Best Mandi
-          </a>
-          <a href="{{ url_for('price_history', crop_id=crop.id) }}"
-             class="btn btn-outline btn-sm" style="flex:1;justify-content:center;">
-            <i class="bi bi-graph-up"></i> Prices
-          </a>
-        </div>
+    </nav>
+  </aside>
+
+  <!-- ===================== MAIN CONTENT ===================== -->
+  <main class="farm-main">
+
+    <!-- ====================================================
+         TAB 1 — PLATFORM (crops, add crop, transport calc, bookings summary)
+         ==================================================== -->
+    <div class="tab-panel {% if active_tab == 'platform' %}active{% endif %}" id="tab-platform">
+
+      <div class="content-title">My Farm</div>
+      <div class="content-sub">Welcome back, {{ farmer.name }} · {{ farmer.district }}</div>
+
+      {% if active_disruptions %}
+      <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:10px;
+                  padding:12px 16px;font-size:.85rem;color:var(--red);margin-bottom:20px;
+                  display:flex;align-items:center;gap:10px;">
+        <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;"></i>
+        <span><strong>{{ active_disruptions|length }} active route alert{{ 's' if active_disruptions|length>1 }}.</strong>
+          Some routes are disrupted and will affect recommendations.</span>
+        <button onclick="switchTab('alerts', document.querySelector('[onclick*=alerts]'))"
+                style="background:none;border:none;cursor:pointer;color:var(--red);font-weight:700;
+                       padding:0;margin-left:auto;white-space:nowrap;flex-shrink:0;">
+          View Alerts →
+        </button>
       </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-state" style="margin-bottom:40px;">
-      <div class="empty-icon"><i class="bi bi-bag-x"></i></div>
-      <h3>No crops added yet</h3>
-      <p>Add your first crop below to get mandi recommendations and price alerts.</p>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    <!-- ===== ADD CROP FORM ===== -->
-    <div style="max-width:680px;">
-      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:20px;">
-        <i class="bi bi-plus-circle me-2 text-green"></i>Add a New Crop
-      </h2>
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;">
-        <form method="POST" action="{{ url_for('add_crop') }}" novalidate>
-          <div class="form-row">
+      <!-- ── Two-column layout: 3D model left (1/3) | crops right (2/3) ── -->
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:28px;align-items:start;margin-bottom:28px;" class="platform-grid">
+
+        <!-- LEFT COLUMN: 3D model only -->
+        <div>
+
+          <!-- Sketchfab 3D model -->
+          <div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);
+                      box-shadow:0 4px 20px rgba(0,0,0,.08);">
+            <div style="background:var(--green-dark);padding:10px 14px;display:flex;
+                        align-items:center;gap:8px;">
+              <span style="font-size:.75rem;font-weight:700;color:#a5d6a7;text-transform:uppercase;
+                           letter-spacing:.08em;">🌾 Crops — 3D View</span>
+            </div>
+            <iframe
+              title="Crops Low Poly"
+              src="https://sketchfab.com/models/637198c4b8be41e6aeaca8cea8fb81f4/embed?autostart=1&ui_hint=0&ui_infos=0&ui_watermark=0&ui_watermark_link=0&ui_ar=0&ui_help=0&ui_settings=0&ui_inspector=0&ui_annotations=0&ui_stop=0&preload=1&camera=0"
+              style="width:100%;height:420px;border:none;display:block;"
+              allow="autoplay; fullscreen; xr-spatial-tracking"
+              allowfullscreen
+              mozallowfullscreen="true"
+              webkitallowfullscreen="true"
+            ></iframe>
+          </div>
+
+        </div><!-- /left column -->
+
+        <!-- RIGHT COLUMN: Your Crops -->
+        <div>
+          <div class="sdiv" style="margin-top:0;">
+            <h3>Your Crops <span style="font-weight:400;color:var(--muted);font-size:.85rem;">{{ crops|length }} listed</span></h3>
+            <hr />
+            <a href="{{ url_for('recommend_mandi') }}" class="btn btn-primary btn-sm">
+              <i class="bi bi-stars"></i> Get Recommendations
+            </a>
+          </div>
+
+          {% if crops %}
+          <div class="crop-grid">
+            {% for crop in crops %}
+            <div class="crop-tile" data-crop-id="{{ crop.id }}">
+              <!-- Top row: name tag + shelf badge + action icons -->
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                <span class="tag tag-green">{{ crop.name }}</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span class="tag {% if crop.shelf_life_days<=3 %}tag-red{% elif crop.shelf_life_days<=7 %}tag-amber{% else %}tag-grey{% endif %}">
+                    {{ crop.shelf_life_days }}d
+                  </span>
+                  <!-- Edit button -->
+                  <button
+                    onclick="openEditModal({{ crop.id }}, '{{ crop.name }}', {{ crop.quantity }}, {{ crop.shelf_life_days }})"
+                    title="Edit crop"
+                    style="background:none;border:none;cursor:pointer;padding:3px;color:var(--blue);
+                           border-radius:5px;line-height:1;transition:background .15s;"
+                    onmouseover="this.style.background='var(--blue-muted)'"
+                    onmouseout="this.style.background='none'">
+                    <i class="bi bi-pencil-square" style="font-size:.95rem;"></i>
+                  </button>
+                  <!-- Delete button -->
+                  <form method="POST" action="{{ url_for('delete_crop', crop_id=crop.id) }}"
+                        onsubmit="return confirm('Delete {{ crop.name }}? This cannot be undone.')">
+                    <button type="submit" title="Delete crop"
+                            style="background:none;border:none;cursor:pointer;padding:3px;color:var(--red);
+                                   border-radius:5px;line-height:1;transition:background .15s;"
+                            onmouseover="this.style.background='var(--red-muted)'"
+                            onmouseout="this.style.background='none'">
+                      <i class="bi bi-trash3" style="font-size:.95rem;"></i>
+                    </button>
+                  </form>
+                </div>
+              </div>
+              <div class="crop-tile-qty">{{ crop.quantity }}</div>
+              <div class="crop-tile-label">tons available</div>
+              <div class="shelf-bar">
+                <div class="shelf-fill {% if crop.shelf_life_days<=3 %}urgent{% elif crop.shelf_life_days<=7 %}medium{% endif %}"
+                     style="width:{{ [crop.shelf_life_days/30*100,100]|min }}%;"></div>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <a href="{{ url_for('recommend_mandi', crop_id=crop.id) }}"
+                   class="btn btn-primary btn-sm" style="flex:1;justify-content:center;font-size:.78rem;">
+                  <i class="bi bi-stars"></i> Best Mandi
+                </a>
+                <a href="{{ url_for('price_history', crop_id=crop.id) }}"
+                   class="btn btn-outline btn-sm" style="flex:1;justify-content:center;font-size:.78rem;">
+                  <i class="bi bi-graph-up"></i> Prices
+                </a>
+              </div>
+              <!-- Deal badge injected here by JS -->
+              <div class="farmer-deal-wrap" style="margin-top:8px;"></div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;
+                      padding:40px 20px;text-align:center;color:var(--muted);">
+            <div style="font-size:2rem;opacity:.25;margin-bottom:10px;">🌱</div>
+            <div style="font-weight:700;color:var(--text);margin-bottom:4px;">No crops yet</div>
+            <div style="font-size:.88rem;">Add your first crop using the form below.</div>
+          </div>
+          {% endif %}
+        </div><!-- /right column -->
+
+      </div><!-- /platform-grid -->
+
+      <!-- ── Full-width row: Add Crop (50%) | Transport Calc (50%) ── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px;" class="forms-grid">
+
+        <!-- Add Crop -->
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:24px;">
+          <div style="font-size:.95rem;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+            <i class="bi bi-plus-circle" style="color:var(--green);font-size:1.1rem;"></i> Add a New Crop
+          </div>
+          <form method="POST" action="{{ url_for('add_crop') }}" novalidate>
             <div class="form-group">
               <label class="form-label">Crop Name</label>
-              <input class="form-input" type="text" name="crop_name"
-                     placeholder="e.g. Tomato" required />
+              <input class="form-input" type="text" name="crop_name" placeholder="e.g. Tomato" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Quantity (tons)</label>
+                <input class="form-input" type="number" name="quantity" placeholder="e.g. 5" step="0.1" min="0.1" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Shelf Life (days)</label>
+                <input class="form-input" type="number" name="shelf_life_days" value="7" min="1" required />
+                <div class="form-hint">Days before crop spoils</div>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+              <i class="bi bi-plus-circle"></i> Add Crop
+            </button>
+          </form>
+        </div>
+
+        <!-- Transport Cost Calculator -->
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:24px;">
+          <div style="font-size:.95rem;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+            <i class="bi bi-truck" style="color:var(--amber);font-size:1.1rem;"></i> Transport Cost Calculator
+          </div>
+          <div class="form-group">
+            <label class="form-label">Crop</label>
+            <select class="form-select" id="tc_crop" onchange="prefillQty(this)">
+              <option value="" data-qty="">Select a crop...</option>
+              {% for crop in crops %}
+              <option value="{{ crop.name }}" data-qty="{{ crop.quantity }}">
+                {{ crop.name }} — {{ crop.quantity }} tons
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">From</label>
+              <select class="form-select" id="tc_from">
+                {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
+                  <option {% if city==farmer.district %}selected{% endif %}>{{ city }}</option>
+                {% endfor %}
+              </select>
             </div>
             <div class="form-group">
+              <label class="form-label">To</label>
+              <select class="form-select" id="tc_to">
+                {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
+                  <option {% if city=='Bengaluru' %}selected{% endif %}>{{ city }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
               <label class="form-label">Quantity (tons)</label>
-              <input class="form-input" type="number" name="quantity"
-                     placeholder="e.g. 5" step="0.1" min="0.1" required />
+              <input class="form-input" type="number" id="tc_qty" value="5" step="0.1" min="0.1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Transport Mode</label>
+              <select class="form-select" id="tc_mode">
+                <option>Bullock Cart</option>
+                <option>Tractor</option>
+                <option selected>Truck</option>
+                <option>Mini Truck</option>
+              </select>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Shelf Life (days)</label>
-            <input class="form-input" type="number" name="shelf_life_days"
-                   placeholder="e.g. 7" min="1" value="7" required />
-            <div class="form-hint">
-              How many days before the crop starts to spoil
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Add Crop
+          <button onclick="calcTransportCost()" class="btn btn-amber" style="width:100%;justify-content:center;">
+            <i class="bi bi-calculator"></i> Calculate Cost
           </button>
-        </form>
-      </div>
-    </div>
-
-    <!-- ===== TRANSPORT CALCULATOR ===== -->
-    <div style="max-width:680px;margin-top:48px;">
-      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:20px;">
-        <i class="bi bi-truck me-2 text-green"></i>Transport Cost Calculator
-      </h2>
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">From (your district)</label>
-            <select class="form-select" id="tc_from">
-              {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
-                <option {% if city == farmer.district %}selected{% endif %}>{{ city }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">To (mandi city)</label>
-            <select class="form-select" id="tc_to">
-              {% for city in ['Kolar','Bengaluru','Tumakuru','Mysuru','Mandya','Hassan'] %}
-                <option {% if city == 'Bengaluru' %}selected{% endif %}>{{ city }}</option>
-              {% endfor %}
-            </select>
-          </div>
+          <div id="tc_result" style="margin-top:12px;"></div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Quantity (tons)</label>
-            <input class="form-input" type="number" id="tc_qty" value="5" step="0.1" min="0.1" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Transport Mode</label>
-            <select class="form-select" id="tc_mode">
-              <option>Bullock Cart</option>
-              <option>Tractor</option>
-              <option selected>Truck</option>
-              <option>Mini Truck</option>
-            </select>
-          </div>
-        </div>
-        <button onclick="calcTransportCost()" class="btn btn-amber">
-          <i class="bi bi-calculator"></i> Calculate
-        </button>
-        <div id="tc_result"></div>
-      </div>
-    </div>
 
-    <!-- ===== RECENT PRE-BOOKINGS ===== -->
-    {% if bookings %}
-    <div style="margin-top:48px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;
-                  flex-wrap:wrap;gap:12px;margin-bottom:20px;">
-        <h2 style="font-size:1.15rem;font-weight:700;">
-          <i class="bi bi-calendar-check me-2 text-green"></i>Recent Pre-Bookings
-        </h2>
-        <a href="{{ url_for('prebooking') }}" class="btn btn-outline btn-sm">View All</a>
+      </div><!-- /forms-grid -->
+      {% if bookings %}
+      <div class="sdiv" style="margin-top:32px;">
+        <h3>Recent Pre-Bookings</h3>
+        <hr />
+        <button onclick="switchTab('prebooking', document.querySelector('[onclick*=prebooking]'))"
+                class="btn btn-outline btn-sm">View All</button>
       </div>
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for b in bookings[:5] %}
+        <div class="booking-row">
+          <div>
+            <div class="booking-crop-name">{{ b.crop_name }}
+              <span style="font-size:.82rem;color:var(--muted);font-weight:400;margin-left:6px;">{{ b.quantity }}t</span>
+            </div>
+            <div class="booking-meta">
+              {% if b.preferred_date %}
+                <span><i class="bi bi-calendar3"></i> {{ b.preferred_date.strftime('%d %b %Y') }}</span>
+              {% endif %}
+              <span><i class="bi bi-clock"></i> {{ b.created_at.strftime('%d %b') }}</span>
+            </div>
+          </div>
+          <span class="status-badge status-{{ b.status|lower }}">{{ b.status }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div><!-- /tab-platform -->
+
+
+    <!-- ====================================================
+         TAB 2 — MARKET PRICES
+         ==================================================== -->
+    <div class="tab-panel {% if active_tab == 'prices' %}active{% endif %}" id="tab-prices">
+
+      <div class="content-title">Market Prices</div>
+      <div class="content-sub">Latest crop prices posted by mandi agents across Karnataka — last 48 hours</div>
+
+      {% if price_entries %}
+        {% set crop_names = price_entries | map(attribute='crop_name') | unique | list %}
+        <div class="filter-chips">
+          <button class="btn btn-primary btn-sm filter-btn" data-filter="" onclick="filterCrops('')">All Crops</button>
+          {% for name in crop_names %}
+          <button class="btn btn-outline btn-sm filter-btn" data-filter="{{ name }}" onclick="filterCrops('{{ name }}')">
+            {{ name }}
+          </button>
+          {% endfor %}
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table" id="priceTable">
+            <thead>
+              <tr>
+                <th>Crop</th>
+                <th>Mandi</th>
+                <th>Location</th>
+                <th>Price (₹/ton)</th>
+                <th>Qty Required</th>
+                <th>Date</th>
+                <th>History</th>
+                <th>Deal Match</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in price_entries %}
+              <tr data-crop="{{ e.crop_name }}" data-price-entry-id="{{ e.id }}">
+                <td><span class="tag tag-green">{{ e.crop_name }}</span></td>
+                <td style="font-weight:600;">{{ e.agent.mandi if e.agent else '—' }}</td>
+                <td style="color:var(--muted);">{{ e.agent.location if e.agent else '—' }}</td>
+                <td class="price-chip">₹{{ '{:,.0f}'.format(e.price) }}</td>
+                <td style="font-weight:600;">
+                  {% if e.quantity_required %}
+                    {{ e.quantity_required }} tons
+                  {% else %}
+                    <span style="color:var(--muted);font-size:.82rem;">—</span>
+                  {% endif %}
+                </td>
+                <td style="color:var(--muted);font-size:.82rem;">{{ e.date.strftime('%d %b %Y') }}</td>
+                <td>
+                  {% if e.crop_id %}
+                  <a href="{{ url_for('price_history', crop_id=e.crop_id) }}" class="btn btn-outline btn-sm">
+                    <i class="bi bi-graph-up"></i> Chart
+                  </a>
+                  {% else %}
+                  <span style="font-size:.8rem;color:var(--muted);">—</span>
+                  {% endif %}
+                </td>
+                <td class="farmer-match-cell"></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+      <div class="empty-state" style="background:var(--white);border:1px solid var(--border);border-radius:14px;">
+        <div class="empty-icon"><i class="bi bi-tag"></i></div>
+        <h3>No prices posted yet</h3>
+        <p>Mandi agents haven't posted prices in the last 48 hours. Check back soon.</p>
+      </div>
+      {% endif %}
+
+    </div><!-- /tab-prices -->
+
+
+    <!-- ====================================================
+         TAB 3 — PRE-BOOK SLOT
+         ==================================================== -->
+    <div class="tab-panel {% if active_tab == 'prebooking' %}active{% endif %}" id="tab-prebooking">
+
+      <div class="content-title">Pre-Book a Mandi Slot</div>
+      <div class="content-sub">Reserve your selling slot before harvest. Mandi agents will confirm within 24 hours.</div>
+
+      <!-- Steps -->
+      <div class="steps" style="margin-bottom:24px;">
+        <div class="step done">
+          <div class="step-num">✓</div><span>Register & Add Crops</span>
+        </div>
+        <div class="step active">
+          <div class="step-num">2</div><span>Pre-Book Slot</span>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div><span>Agent Confirms</span>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div><span>Deliver & Get Paid</span>
+        </div>
+      </div>
+
+      <!-- Booking form -->
+      <div class="booking-form-card">
+        <div class="booking-form-top">
+          <h3><i class="bi bi-calendar-plus me-2"></i>Create a New Pre-Booking</h3>
+          <p>Fill in the details below — we'll notify you when the agent confirms.</p>
+        </div>
+        <div class="booking-form-body">
+          <form method="POST" action="{{ url_for('prebooking') }}" novalidate>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Crop Name</label>
+                <input class="form-input" type="text" name="crop_name" placeholder="e.g. Tomato, Rose, Ragi" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Quantity (tons)</label>
+                <input class="form-input" type="number" name="quantity" placeholder="e.g. 5.0" step="0.5" min="0.5" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Preferred Delivery Date</label>
+                <input class="form-input" type="date" name="preferred_date" />
+                <div class="form-hint">Leave blank if flexible</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Target Mandi Agent <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
+                <select class="form-select" name="agent_id">
+                  <option value="">Any available agent</option>
+                  {% for a in agents %}
+                  <option value="{{ a.id }}">{{ a.name }} — {{ a.mandi }}, {{ a.location }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div style="background:var(--green-muted);border:1px solid #a5d6a7;border-radius:8px;
+                        padding:12px 16px;margin-bottom:20px;font-size:.83rem;color:var(--green-dark);
+                        display:flex;align-items:center;gap:8px;">
+              <i class="bi bi-info-circle-fill" style="flex-shrink:0;"></i>
+              Once submitted, the mandi agent will confirm availability. You'll get an SMS via Fast2SMS.
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-send"></i> Submit Pre-Booking
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- My bookings -->
+      <div class="sdiv">
+        <h3>My Pre-Bookings</h3>
+        <hr />
+        <span class="tag tag-green">{{ bookings|length }} total</span>
+      </div>
+
+      {% if bookings %}
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for b in bookings %}
+        <div class="booking-row">
+          <div>
+            <div class="booking-crop-name">
+              {{ b.crop_name }}
+              <span style="font-size:.85rem;color:var(--muted);font-weight:400;margin-left:6px;">{{ b.quantity }} tons</span>
+            </div>
+            <div class="booking-meta">
+              {% if b.agent %}
+              <span><i class="bi bi-shop"></i> {{ b.agent.mandi }}, {{ b.agent.location }}</span>
+              {% else %}
+              <span><i class="bi bi-shop"></i> Any mandi</span>
+              {% endif %}
+              {% if b.preferred_date %}
+              <span><i class="bi bi-calendar3"></i> {{ b.preferred_date.strftime('%d %b %Y') }}</span>
+              {% endif %}
+              <span><i class="bi bi-clock"></i> {{ b.created_at.strftime('%d %b, %H:%M') }}</span>
+            </div>
+          </div>
+          <span class="status-badge status-{{ b.status|lower }}">{{ b.status }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;
+                  padding:40px 20px;text-align:center;color:var(--muted);">
+        <div style="font-size:2rem;opacity:.25;margin-bottom:10px;">📅</div>
+        <div style="font-weight:700;color:var(--text);margin-bottom:4px;">No pre-bookings yet</div>
+        <div style="font-size:.88rem;">Use the form above to secure your first mandi slot.</div>
+      </div>
+      {% endif %}
+
+    </div><!-- /tab-prebooking -->
+
+
+    <!-- ====================================================
+         TAB 4 — ROUTE ALERTS
+         ==================================================== -->
+    <div class="tab-panel {% if active_tab == 'alerts' %}active{% endif %}" id="tab-alerts">
+
+      <div class="content-title">Route Alerts</div>
+      <div class="content-sub">Live road blocks, floods, strikes and closures affecting delivery routes</div>
+
+      {% set active_d   = disruptions | selectattr('active_flag')  | list %}
+      {% set resolved_d = disruptions | rejectattr('active_flag')  | list %}
+
+      <!-- Active alert banner -->
+      {% if active_d %}
+      <div class="alert-banner">
+        <div style="font-size:1.8rem;">⚠️</div>
+        <div>
+          <h3>{{ active_d|length }} active disruption{{ 's' if active_d|length>1 }} right now</h3>
+          <p>These routes are penalised in your mandi recommendations.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:32px;">
+        {% for d in active_d %}
+        {% set dtype = d.type|lower %}
+        <div class="dis-card">
+          <div class="dtype-icon {% if 'flood' in dtype %}dtype-flood{% elif 'road' in dtype or 'closure' in dtype %}dtype-road{% elif 'strike' in dtype %}dtype-strike{% elif 'festival' in dtype %}dtype-festival{% elif 'accident' in dtype %}dtype-accident{% else %}dtype-other{% endif %}">
+            {% if 'flood' in dtype %}🌊{% elif 'road' in dtype or 'closure' in dtype %}🚧{% elif 'strike' in dtype %}✊{% elif 'festival' in dtype %}🎉{% elif 'accident' in dtype %}🚨{% else %}📌{% endif %}
+          </div>
+          <div>
+            <div class="dis-route">{{ d.route }}</div>
+            <div class="dis-meta">
+              <span class="tag tag-amber">{{ d.type }}</span>
+              <span class="tag tag-red" style="background:#ffebee;color:#b71c1c;">● ACTIVE</span>
+            </div>
+            {% if d.description %}<div class="dis-desc">{{ d.description }}</div>{% endif %}
+            <div class="dis-dates">
+              <i class="bi bi-calendar3 me-1"></i>Since {{ d.start_date.strftime('%d %b %Y') }}
+              {% if d.end_date %} — ends {{ d.end_date.strftime('%d %b') }}{% endif %}
+            </div>
+          </div>
+          <span class="tag tag-grey" style="font-size:.72rem;flex-shrink:0;">
+            <i class="bi bi-info-circle me-1"></i>Affects routing
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div class="all-clear" style="margin-bottom:28px;">
+        <div class="all-clear-icon">✅</div>
+        <div style="font-weight:700;margin-bottom:4px;">All routes are clear right now</div>
+        <div style="font-size:.88rem;color:var(--green);">No active disruptions.</div>
+      </div>
+      {% endif %}
+
+      <!-- Past disruptions -->
+      {% if resolved_d %}
+      <div class="sdiv">
+        <h3 style="color:var(--muted);">Past Disruptions</h3>
+        <hr />
+        <span class="tag tag-grey">{{ resolved_d|length }} resolved</span>
+      </div>
+      <div class="table-wrap">
         <table class="data-table">
           <thead>
-            <tr><th>Crop</th><th>Quantity</th><th>Preferred Date</th><th>Status</th></tr>
+            <tr><th>Route</th><th>Type</th><th>Started</th><th>Ended</th><th>Status</th></tr>
           </thead>
           <tbody>
-            {% for b in bookings %}
+            {% for d in resolved_d %}
             <tr>
-              <td style="font-weight:600;">{{ b.crop_name }}</td>
-              <td>{{ b.quantity }} tons</td>
-              <td style="color:var(--muted);">
-                {{ b.preferred_date.strftime('%d %b %Y') if b.preferred_date else '—' }}
-              </td>
-              <td><span class="status-badge status-{{ b.status|lower }}">{{ b.status }}</span></td>
+              <td style="font-weight:600;">{{ d.route }}</td>
+              <td><span class="tag tag-grey">{{ d.type }}</span></td>
+              <td style="color:var(--muted);font-size:.82rem;">{{ d.start_date.strftime('%d %b %Y') }}</td>
+              <td style="color:var(--muted);font-size:.82rem;">{{ d.end_date.strftime('%d %b %Y') if d.end_date else '—' }}</td>
+              <td><span class="tag tag-green">✓ Resolved</span></td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
+      {% if not disruptions %}
+      <div class="all-clear">
+        <div class="all-clear-icon">🛣️</div>
+        <div style="font-weight:700;margin-bottom:4px;">No disruptions recorded yet</div>
+        <div style="font-size:.88rem;color:var(--green);">All routes operating normally.</div>
+      </div>
+      {% endif %}
+
+    </div><!-- /tab-alerts -->
+
+  </main>
+
+  <!-- ============================================================
+       EDIT CROP MODAL — inside content block so Jinja renders it
+       ============================================================ -->
+  <div id="edit-modal-overlay" style="
+    display:none; position:fixed; inset:0; z-index:9000;
+    background:rgba(0,0,0,.45); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; padding:20px;">
+
+    <div style="background:#fff; border-radius:18px; width:100%; max-width:420px;
+                box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden; animation:modalIn .2s ease;">
+
+      <div style="background:linear-gradient(135deg,var(--green-dark),#388e3c);
+                  padding:20px 24px; display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="font-size:.7rem;font-weight:700;color:#a5d6a7;text-transform:uppercase;
+                      letter-spacing:.1em;margin-bottom:2px;">Editing crop</div>
+          <div id="edit-modal-title" style="font-size:1.05rem;font-weight:700;color:#fff;"></div>
+        </div>
+        <button onclick="closeEditModal()"
+                style="background:rgba(255,255,255,.15);border:none;cursor:pointer;
+                       width:32px;height:32px;border-radius:50%;color:#fff;font-size:1.1rem;
+                       display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+
+      <form id="edit-form" method="POST">
+        <div style="padding:24px;">
+          <div style="background:var(--green-muted);border:1px solid #a5d6a7;border-radius:8px;
+                      padding:10px 14px;margin-bottom:20px;font-size:.83rem;color:var(--green-dark);
+                      display:flex;align-items:center;gap:8px;">
+            <i class="bi bi-info-circle-fill" style="flex-shrink:0;"></i>
+            Editing <strong id="edit-crop-name"></strong> — update quantity and shelf life.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="form-group">
+              <label class="form-label"><i class="bi bi-boxes me-1" style="color:var(--green);"></i>Quantity (tons)</label>
+              <input class="form-input" type="number" id="edit-quantity" name="quantity" step="0.1" min="0.1" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="bi bi-clock me-1" style="color:var(--amber);"></i>Shelf Life (days)</label>
+              <input class="form-input" type="number" id="edit-shelf" name="shelf_life_days" min="1" required />
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px 24px;background:var(--bg);border-top:1px solid var(--border);
+                    display:flex;gap:10px;justify-content:flex-end;">
+          <button type="button" onclick="closeEditModal()" class="btn btn-outline">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i> Save Changes
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+</div><!-- /farm-layout -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(tabId, clickedBtn) {
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+  var panel = document.getElementById('tab-' + tabId);
+  if (panel) panel.classList.add('active');
+  document.querySelectorAll('.sidebar-item').forEach(function(item) { item.classList.remove('active'); });
+  if (clickedBtn) clickedBtn.classList.add('active');
+  var url = new URL(window.location.href);
+  url.searchParams.set('tab', tabId);
+  history.pushState({tab: tabId}, '', url.toString());
+}
+
+function prefillQty(select) {
+  var qty = select.options[select.selectedIndex].dataset.qty;
+  if (qty) document.getElementById('tc_qty').value = qty;
+}
+
+function openEditModal(cropId, cropName, quantity, shelfLife) {
+  document.getElementById('edit-modal-title').textContent = 'Edit — ' + cropName;
+  document.getElementById('edit-crop-name').textContent   = cropName;
+  document.getElementById('edit-quantity').value          = quantity;
+  document.getElementById('edit-shelf').value             = shelfLife;
+  document.getElementById('edit-form').action             = '/edit_crop/' + cropId;
+  document.getElementById('edit-modal-overlay').style.display = 'flex';
+  setTimeout(function() { document.getElementById('edit-quantity').focus(); }, 50);
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal-overlay').style.display = 'none';
+}
+
+/* ============================================================
+   DEAL SYSTEM — Farmer side
+   ============================================================ */
+var _cropDeals = {};   // crop_id (string) → deal info
+
+function loadCropDealBadges() {
+  fetch('/api/deal/crop_deals')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      _cropDeals = data;
+      document.querySelectorAll('[data-crop-id]').forEach(function(tile){
+        var cropId = tile.getAttribute('data-crop-id');
+        var d = data[cropId];
+        if (d) {
+          renderFarmerBadge(tile, cropId, d);
+        } else {
+          var wrap = tile.querySelector('.farmer-deal-wrap');
+          if (wrap) wrap.innerHTML = '';
+        }
+      });
+    })
+    .catch(function(){});
+}
+
+function renderFarmerBadge(tile, cropId, d) {
+  var wrap = tile.querySelector('.farmer-deal-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (d.status === 'requested') {
+    var btn = document.createElement('button');
+    btn.className = 'deal-badge requested';
+    btn.style.width = '100%';
+    btn.textContent = '📥 Requested';
+    btn.onclick = function(){ openFarmerModal(cropId, d); };
+    wrap.appendChild(btn);
+  } else if (d.status === 'accepted') {
+    var btn = document.createElement('button');
+    btn.className = 'deal-badge deal';
+    btn.style.width = '100%';
+    btn.textContent = '🤝 Deal';
+    btn.onclick = function(){ openFarmerModal(cropId, d); };
+    wrap.appendChild(btn);
+  }
+}
+
+function openFarmerModal(cropId, d) {
+  var modal = document.getElementById('farmer-deal-modal');
+  document.getElementById('fdm-title').textContent  = d.status === 'accepted' ? '🤝 Deal Details' : '📥 Purchase Request';
+  document.getElementById('fdm-mandi').textContent    = d.mandi;
+  document.getElementById('fdm-agent').textContent    = d.agent_name;
+  document.getElementById('fdm-location').textContent = d.location;
+  document.getElementById('fdm-contact').textContent  = d.contact;
+  document.getElementById('fdm-crop').textContent     = d.crop_name;
+  document.getElementById('fdm-qty').textContent      = d.qty_required ? (d.qty_required + ' tons') : '—';
+  document.getElementById('fdm-price').textContent    = '₹' + d.price_per_ton.toLocaleString('en-IN') + '/ton';
+  document.getElementById('fdm-transport').textContent= d.transport_cost ? '₹' + d.transport_cost.toLocaleString('en-IN') : '—';
+
+  var disruptionRow = document.getElementById('fdm-disruption-row');
+  var disruptionVal = document.getElementById('fdm-disruption-val');
+  if (d.disruption) {
+    disruptionVal.innerHTML = '<strong>' + d.disruption.route + '</strong>: ' + d.disruption.type + '<br><span style="font-size:0.78rem; opacity:0.85;">' + d.disruption.description + '</span>';
+    disruptionRow.style.display = 'flex';
+  } else {
+    disruptionRow.style.display = 'none';
+  }
+
+  var acceptBtn = document.getElementById('fdm-accept-btn');
+  var rejectBtn = document.getElementById('fdm-reject-btn');
+
+  if (d.status === 'accepted') {
+    acceptBtn.textContent = '🤝 Accepted!';
+    acceptBtn.disabled    = true;
+    rejectBtn.style.display = 'none';
+  } else {
+    acceptBtn.textContent = '✅ Accept';
+    acceptBtn.disabled    = false;
+    rejectBtn.style.display = '';
+    rejectBtn.textContent = 'Reject';
+  }
+
+  acceptBtn.onclick = function(){
+    postJSON('/api/deal/farmer_accept', { deal_id: d.deal_id })
+      .then(function(res){
+        d.status = res.status;
+        var tile = document.querySelector('[data-crop-id="' + cropId + '"]');
+        renderFarmerBadge(tile, cropId, d);
+        openFarmerModal(cropId, d);
+      });
+  };
+
+  rejectBtn.onclick = function(){
+    postJSON('/api/deal/farmer_reject', { deal_id: d.deal_id })
+      .then(function(){
+        var tile = document.querySelector('[data-crop-id="' + cropId + '"]');
+        var wrap = tile.querySelector('.farmer-deal-wrap');
+        if (wrap) wrap.innerHTML = '';
+        delete _cropDeals[cropId];
+        closeFarmerModal();
+      });
+  };
+
+  modal.style.display = 'flex';
+}
+
+function closeFarmerModal() {
+  document.getElementById('farmer-deal-modal').style.display = 'none';
+}
+
+/* ============================================================
+   FARMER MATCH SYSTEM — Market Prices Deal Match badges
+   ============================================================ */
+var _farmerMatches = {};  // price_entry_id → match object
+
+function loadFarmerMatches() {
+  fetch('/api/deal/farmer_matches')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      _farmerMatches = data;
+      document.querySelectorAll('[data-price-entry-id]').forEach(function(row){
+        var entryId = row.getAttribute('data-price-entry-id');
+        var cell = row.querySelector('.farmer-match-cell');
+        if (!cell) return;
+        var m = data[entryId];
+        if (m) {
+          renderMatchBadge(cell, entryId, m);
+        } else {
+          cell.innerHTML = '';
+        }
+      });
+    })
+    .catch(function(){});
+}
+
+function renderMatchBadge(cell, entryId, m) {
+  cell.innerHTML = '';
+  var btn = document.createElement('button');
+  var st = m.deal_status;
+  if (st === 'available') {
+    btn.className = 'deal-badge available';
+    btn.textContent = '⚡ Available';
+    btn.onclick = function(){ openFarmerAvailableModal(entryId, m); };
+  } else if (st === 'requested') {
+    btn.className = 'deal-badge requested';
+    btn.textContent = '📤 Requested';
+    btn.onclick = function(){ openFarmerAvailableModal(entryId, m); };
+  } else if (st === 'accepted') {
+    btn.className = 'deal-badge deal';
+    btn.textContent = '🤝 Deal';
+    btn.onclick = function(){ openFarmerAvailableModal(entryId, m); };
+  }
+  if (btn.className) cell.appendChild(btn);
+}
+
+function openFarmerAvailableModal(entryId, m) {
+  var modal = document.getElementById('farmer-available-modal');
+
+  // Header
+  var titleMap = { available: '⚡ Deal Available', requested: '📤 Requested', accepted: '🤝 Deal Confirmed' };
+  document.getElementById('fam-title').textContent = titleMap[m.deal_status] || 'Deal Match';
+
+  // Retailer details
+  document.getElementById('fam-mandi').textContent    = m.retailer_mandi;
+  document.getElementById('fam-location').textContent = m.retailer_location;
+  document.getElementById('fam-contact').textContent  = m.retailer_contact;
+  document.getElementById('fam-qty-req').textContent  = m.qty_required + ' tons';
+  document.getElementById('fam-budget').textContent   = '₹' + m.retailer_price.toLocaleString('en-IN') + '/ton';
+
+  // Farmer/crop details
+  document.getElementById('fam-crop').textContent     = m.crop_name;
+  document.getElementById('fam-farmer-loc').textContent = m.farmer_village + ', ' + m.farmer_district;
+  document.getElementById('fam-qty-avail').textContent= m.qty_available + ' tons';
+  document.getElementById('fam-distance').textContent = m.distance_km + ' km';
+  document.getElementById('fam-tc').textContent       = '₹' + m.transport_cost.toLocaleString('en-IN');
+  document.getElementById('fam-cop').textContent      = '₹' + m.farmer_cop.toLocaleString('en-IN') + '/ton';
+  document.getElementById('fam-selling-price').textContent = '₹' + m.farmer_price_per_ton.toLocaleString('en-IN') + '/ton';
+  document.getElementById('fam-profit').textContent   = '₹' + ((m.retailer_price - m.farmer_price_per_ton) * m.qty_required).toLocaleString('en-IN');
+
+  // Transport breakdown
+  var bd = m.transport_breakdown || {};
+  document.getElementById('fam-tc-fuel').textContent    = bd.fuel_cost ? '₹' + bd.fuel_cost.toLocaleString('en-IN') : '—';
+  document.getElementById('fam-tc-load').textContent    = bd.loading_cost ? '₹' + bd.loading_cost.toLocaleString('en-IN') : '—';
+  document.getElementById('fam-tc-toll').textContent    = bd.toll_cost ? '₹' + bd.toll_cost.toLocaleString('en-IN') : '—';
+
+  // Buttons
+  var bookBtn   = document.getElementById('fam-book-btn');
+  var rejectBtn = document.getElementById('fam-reject-btn');
+
+  if (m.deal_status === 'requested') {
+    bookBtn.textContent = '📤 Requested';
+    bookBtn.disabled = true;
+    rejectBtn.textContent = 'Cancel';
+    rejectBtn.style.display = '';
+  } else if (m.deal_status === 'accepted') {
+    bookBtn.textContent = '🤝 Confirmed!';
+    bookBtn.disabled = true;
+    rejectBtn.style.display = 'none';
+  } else {
+    bookBtn.textContent = '📬 Book';
+    bookBtn.disabled = false;
+    rejectBtn.textContent = 'Reject';
+    rejectBtn.style.display = '';
+  }
+
+  bookBtn.onclick = function(){
+    if (m.deal_status === 'available') {
+      postJSON('/api/deal/farmer_book', { price_entry_id: parseInt(entryId), crop_id: m.crop_id })
+        .then(function(res){
+          m.deal_status = res.status;
+          m.deal_id     = res.deal_id;
+          var row = document.querySelector('[data-price-entry-id="' + entryId + '"]');
+          if (row) renderMatchBadge(row.querySelector('.farmer-match-cell'), entryId, m);
+          loadCropDealBadges();
+          openFarmerAvailableModal(entryId, m);
+        });
+    }
+  };
+
+  rejectBtn.onclick = function(){
+    if (m.deal_id) {
+      postJSON('/api/deal/retailer_reject', { deal_id: m.deal_id })
+        .then(function(){
+          m.deal_status = 'available';
+          m.deal_id = null;
+          var row = document.querySelector('[data-price-entry-id="' + entryId + '"]');
+          if (row) renderMatchBadge(row.querySelector('.farmer-match-cell'), entryId, m);
+          closeFarmerAvailableModal();
+        });
+    } else {
+      closeFarmerAvailableModal();
+    }
+  };
+
+  modal.style.display = 'flex';
+}
+
+function closeFarmerAvailableModal() {
+  document.getElementById('farmer-available-modal').style.display = 'none';
+}
+
+function postJSON(url, body) {
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadCropDealBadges();
+  setInterval(loadCropDealBadges, 5000);
+
+  loadFarmerMatches();
+  setInterval(loadFarmerMatches, 5000);
+
+  document.getElementById('edit-modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+  });
+  document.getElementById('farmer-deal-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeFarmerModal();
+  });
+  document.getElementById('farmer-available-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeFarmerAvailableModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { closeEditModal(); closeFarmerModal(); closeFarmerAvailableModal(); }
+  });
+});
+</script>
+
+<!-- Deal badge + farmer modal styles -->
+<style>
+.deal-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 30px;
+  font-size: .75rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  transition: opacity .15s;
+}
+.deal-badge.requested { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.deal-badge.deal      { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.deal-badge:hover     { opacity: .8; }
+
+.rdm-overlay {
+  display: none; position: fixed; inset: 0; z-index: 9100;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(3px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.rdm-box {
+  background: #fff; border-radius: 18px; width: 100%; max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden;
+  animation: modalIn .2s ease;
+}
+.rdm-header {
+  background: linear-gradient(135deg, #e65100, #f57f17);
+  padding: 18px 22px; display: flex; align-items: center; justify-content: space-between;
+}
+.rdm-header-title { font-size: 1rem; font-weight: 700; color: #fff; }
+.rdm-header-sub   { font-size: .78rem; color: #ffe0b2; margin-top: 2px; }
+.rdm-body  { padding: 20px; }
+.rdm-row   { display: flex; justify-content: space-between; align-items: center;
+             padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .87rem; }
+.rdm-row:last-child { border-bottom: none; }
+.rdm-label { color: var(--muted); }
+.rdm-value { font-weight: 700; }
+.rdm-footer { padding: 14px 22px; background: var(--bg); border-top: 1px solid var(--border);
+              display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+
+<!-- Farmer Deal Modal -->
+<div id="farmer-deal-modal" class="rdm-overlay">
+  <div class="rdm-box">
+    <div class="rdm-header">
+      <div>
+        <div class="rdm-header-title" id="fdm-title">Purchase Request</div>
+        <div class="rdm-header-sub">Retailer wants to buy your crop</div>
+      </div>
+      <button onclick="closeFarmerModal()"
+              style="background:rgba(255,255,255,.15);border:none;cursor:pointer;
+                     width:30px;height:30px;border-radius:50%;color:#fff;font-size:1rem;
+                     display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div class="rdm-body">
+      <div class="rdm-row"><span class="rdm-label">🏪 Mandi</span>     <span class="rdm-value" id="fdm-mandi"></span></div>
+      <div class="rdm-row"><span class="rdm-label">👤 Agent</span>     <span class="rdm-value" id="fdm-agent"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📍 Location</span>  <span class="rdm-value" id="fdm-location"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📞 Contact</span>   <span class="rdm-value" id="fdm-contact"></span></div>
+      <div class="rdm-row"><span class="rdm-label">🌾 Crop</span>      <span class="rdm-value" id="fdm-crop"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📦 Qty Needed</span><span class="rdm-value" id="fdm-qty"></span></div>
+      <div class="rdm-row"><span class="rdm-label">💰 Offering Price</span><span class="rdm-value" id="fdm-price" style="color:var(--green-dark);"></span></div>
+      <div class="rdm-row"><span class="rdm-label">🚛 Transport Cost</span><span class="rdm-value" id="fdm-transport"></span></div>
+      <div class="rdm-row" id="fdm-disruption-row" style="display:none; background:#ffebee; border:1px solid #ef9a9a; border-radius:8px; padding:10px; margin-top:10px; flex-direction:column; align-items:flex-start; gap:4px; width:100%;">
+        <span class="rdm-label" style="color:#b71c1c; font-weight:700; display:flex; align-items:center; gap:6px; margin-bottom: 2px;">
+          ⚠️ Disrupted Route (Avoid)
+        </span>
+        <span class="rdm-value" id="fdm-disruption-val" style="color:#b71c1c; font-size:0.85rem; font-weight:500;"></span>
+      </div>
+    </div>
+    <div class="rdm-footer">
+      <button id="fdm-reject-btn" class="btn btn-outline">Reject</button>
+      <button id="fdm-accept-btn" class="btn btn-primary">✅ Accept</button>
+    </div>
   </div>
 </div>
 
+<style>
+@keyframes modalIn {
+  from { transform: translateY(-12px) scale(.97); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+:root { --red-muted: #ffebee; --blue-muted: #e3f2fd; }
+.deal-badge.available { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+.farmer-match-cell { min-width: 110px; }
+.fam-section-label {
+  font-size: .68rem; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+  padding: 12px 20px 6px; background: var(--bg);
+  border-top: 1px solid var(--border); margin: 0;
+}
+.fam-profit-bar {
+  background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+  border: 1px solid #a5d6a7; border-radius: 10px;
+  padding: 12px 20px; margin: 12px 20px 4px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+</style>
+
+<!-- Farmer Available Deal Modal -->
+<div id="farmer-available-modal" class="rdm-overlay">
+  <div class="rdm-box" style="max-width:500px;">
+    <div class="rdm-header" style="background:linear-gradient(135deg,#e65100,#f57f17);">
+      <div>
+        <div class="rdm-header-title" id="fam-title">⚡ Deal Available</div>
+        <div class="rdm-header-sub">A retailer wants to buy your crop — review the details</div>
+      </div>
+      <button onclick="closeFarmerAvailableModal()"
+              style="background:rgba(255,255,255,.15);border:none;cursor:pointer;
+                     width:30px;height:30px;border-radius:50%;color:#fff;font-size:1rem;
+                     display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <!-- Retailer Section -->
+    <p class="fam-section-label">🏪 Retailer Details</p>
+    <div class="rdm-body" style="padding:0 20px 4px;">
+      <div class="rdm-row"><span class="rdm-label">🏪 Mandi</span>      <span class="rdm-value" id="fam-mandi"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📍 Location</span>   <span class="rdm-value" id="fam-location"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📞 Contact</span>    <span class="rdm-value" id="fam-contact"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📦 Qty Required</span><span class="rdm-value" id="fam-qty-req"></span></div>
+      <div class="rdm-row"><span class="rdm-label">💰 Their Budget</span><span class="rdm-value" id="fam-budget" style="color:#1e40af;"></span></div>
+    </div>
+
+    <!-- Crop / Farmer Section -->
+    <p class="fam-section-label">🌾 Your Crop Details</p>
+    <div class="rdm-body" style="padding:0 20px 4px;">
+      <div class="rdm-row"><span class="rdm-label">🌾 Crop</span>         <span class="rdm-value" id="fam-crop"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📍 Your Location</span> <span class="rdm-value" id="fam-farmer-loc"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📦 Available Qty</span> <span class="rdm-value" id="fam-qty-avail"></span></div>
+      <div class="rdm-row"><span class="rdm-label">🛣️ Distance</span>      <span class="rdm-value" id="fam-distance"></span></div>
+    </div>
+
+    <!-- Transport Breakdown Section -->
+    <p class="fam-section-label">🚛 Transport Cost Breakdown</p>
+    <div class="rdm-body" style="padding:0 20px 4px;">
+      <div class="rdm-row"><span class="rdm-label">⛽ Fuel / Fodder</span>       <span class="rdm-value" id="fam-tc-fuel"></span></div>
+      <div class="rdm-row"><span class="rdm-label">📦 Loading / Unloading</span> <span class="rdm-value" id="fam-tc-load"></span></div>
+      <div class="rdm-row"><span class="rdm-label">🛣️ Toll / Road Tax</span>     <span class="rdm-value" id="fam-tc-toll"></span></div>
+      <div class="rdm-row" style="border-top:2px solid var(--border);margin-top:4px;padding-top:10px;">
+        <span class="rdm-label" style="font-weight:700;">🚛 Total Transport</span>
+        <span class="rdm-value" id="fam-tc" style="color:var(--amber);"></span>
+      </div>
+    </div>
+
+    <!-- Pricing Summary -->
+    <p class="fam-section-label">💰 Pricing Summary</p>
+    <div class="rdm-body" style="padding:0 20px 4px;">
+      <div class="rdm-row"><span class="rdm-label">🏭 Your Prod. Cost</span>       <span class="rdm-value" id="fam-cop"></span></div>
+      <div class="rdm-row"><span class="rdm-label">💵 Your Min. Selling Price</span><span class="rdm-value" id="fam-selling-price" style="color:var(--green-dark);"></span></div>
+    </div>
+    <div class="fam-profit-bar">
+      <span style="font-weight:700;font-size:.88rem;color:var(--green-dark);">💚 Estimated Net Profit</span>
+      <span id="fam-profit" style="font-size:1.2rem;font-weight:800;color:var(--green-dark);"></span>
+    </div>
+
+    <div class="rdm-footer">
+      <button id="fam-reject-btn" class="btn btn-outline" style="min-width:90px;">Reject</button>
+      <button id="fam-book-btn"   class="btn btn-primary" style="min-width:110px;">📬 Book</button>
+    </div>
+  </div>
+</div>
 {% endblock %}

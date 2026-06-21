@@ -20,21 +20,20 @@
       <i class="bi bi-leaf-fill"></i> KSHE<span>TRA</span>
     </a>
 
-    <!-- Desktop nav links -->
+    <!-- Show nav links only when NOT logged in as farmer (farmer uses sidebar) -->
+    {% if session.get('role') != 'farmer' %}
     <div class="nav-links" id="navLinks">
-      <a href="{{ url_for('view_prices') }}"><i class="bi bi-graph-up me-1"></i>Market Prices</a>
-      <a href="{{ url_for('view_disruptions') }}"><i class="bi bi-exclamation-triangle me-1"></i>Alerts</a>
-
-      {% if session.get('role') == 'farmer' %}
-        <a href="{{ url_for('farmer_dashboard') }}"><i class="bi bi-house me-1"></i>My Crops</a>
-        <a href="{{ url_for('recommend_mandi') }}"><i class="bi bi-stars me-1"></i>Recommendations</a>
-        <a href="{{ url_for('prebooking') }}"><i class="bi bi-calendar-check me-1"></i>Pre-Book</a>
-      {% elif session.get('role') == 'mandi' %}
+      {% if session.get('role') == 'mandi' %}
         <a href="{{ url_for('mandi_dashboard') }}"><i class="bi bi-house me-1"></i>My Mandi</a>
+        <a href="{{ url_for('view_prices') }}"><i class="bi bi-graph-up me-1"></i>Market Prices</a>
         <a href="{{ url_for('add_disruption') }}"><i class="bi bi-flag me-1"></i>Flag Route</a>
         <a href="{{ url_for('prebooking') }}"><i class="bi bi-truck me-1"></i>Supply Pipeline</a>
+      {% else %}
+        <a href="{{ url_for('view_prices') }}"><i class="bi bi-graph-up me-1"></i>Market Prices</a>
+        <a href="{{ url_for('view_disruptions') }}"><i class="bi bi-exclamation-triangle me-1"></i>Alerts</a>
       {% endif %}
     </div>
+    {% endif %}
 
     <!-- Right side -->
     <div class="nav-end">
@@ -50,9 +49,11 @@
       {% endif %}
     </div>
 
+    {% if session.get('role') != 'farmer' %}
     <button class="nav-toggle" id="navToggle" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
+    {% endif %}
 
   </div>
 </nav>

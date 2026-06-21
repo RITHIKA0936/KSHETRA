@@ -2,6 +2,13 @@
 {% block title %}Mandi Recommendations for {{ crop.name }} — KSHETRA{% endblock %}
 
 {% block content %}
+<style>
+  .tr-best-pick { background: #f1f8f2; }
+  .td-rain-high  { color: var(--red); font-weight: 700; }
+  .td-rain-low   { color: var(--muted); }
+  .td-profit-pos { font-weight: 700; color: var(--green-dark); }
+  .td-profit-neg { font-weight: 700; color: var(--red); }
+</style>
 
 <!-- Page Header -->
 <div class="page-header">
@@ -63,6 +70,36 @@
     </div>
 
     {% if recommendations %}
+
+    <!-- ===== INTERACTIVE MAP ===== -->
+    <div class="map-section">
+      <div class="map-section-title">
+        <i class="bi bi-map"></i> Recommended Mandi Routes & Profitability Map
+      </div>
+      <div id="recommendMap" class="kshetra-map kshetra-map-lg"></div>
+      <div class="map-legend">
+        <div class="map-legend-item">
+          <div class="map-legend-dot" style="background:#2e7d32;"></div>
+          <span>Your Farm</span>
+        </div>
+        <div class="map-legend-item">
+          <div class="map-legend-dot" style="background:#1b5e20;"></div>
+          <span>Best Pick (Rank 1)</span>
+        </div>
+        <div class="map-legend-item">
+          <div class="map-legend-dot" style="background:#e65100;"></div>
+          <span>Moderate Profit</span>
+        </div>
+        <div class="map-legend-item">
+          <div class="map-legend-dot" style="background:#c62828;"></div>
+          <span>Low/Negative Profit</span>
+        </div>
+        <div class="map-legend-item">
+          <div class="map-legend-dot" style="background:#d32f2f; border-radius: 0; width: 14px; height: 3px;"></div>
+          <span>Disrupted Route</span>
+        </div>
+      </div>
+    </div>
 
     <!-- ===== RECOMMENDATION CARDS ===== -->
     <div class="rec-grid" style="margin-bottom:48px;">
@@ -154,7 +191,7 @@
           </thead>
           <tbody>
             {% for rec in recommendations %}
-            <tr {% if loop.first %}style="background:#f1f8f2;"{% endif %}>
+            <tr class="{% if loop.first %}tr-best-pick{% endif %}">
               <td style="font-weight:700;color:var(--muted);">{{ loop.index }}</td>
               <td style="font-weight:600;">
                 {{ rec.mandi }}
@@ -164,10 +201,10 @@
               <td class="price-chip">₹{{ '{:,.0f}'.format(rec.mandi_price) }}</td>
               <td>{{ rec.distance_km }} km</td>
               <td>₹{{ '{:,.0f}'.format(rec.transport_cost) }}</td>
-              <td {% if rec.rain_prob > 60 %}style="color:var(--red);font-weight:700;"{% else %}style="color:var(--muted);"{% endif %}>
+              <td class="{% if rec.rain_prob > 60 %}td-rain-high{% else %}td-rain-low{% endif %}">
                 {{ rec.rain_prob }}%
               </td>
-              <td style="font-weight:700;{% if rec.net_profit > 0 %}color:var(--green-dark);{% else %}color:var(--red);{% endif %}">
+              <td class="{% if rec.net_profit > 0 %}td-profit-pos{% else %}td-profit-neg{% endif %}">
                 ₹{{ '{:,.0f}'.format(rec.net_profit) }}
               </td>
             </tr>
@@ -189,4 +226,135 @@
   </div>
 </div>
 
+<script id="map-data" type="application/json">
+  {
+    "farmerCoords": {{ farmer_coords | tojson | default('null', true) }},
+    "recommendations": {{ recommendations | tojson | default('[]', true) }}
+  }
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const mapData = JSON.parse(document.getElementById('map-data').textContent);
+  const farmerCoords = mapData.farmerCoords;
+  const recommendations = mapData.recommendations;
+  const farmerDistrict = "{{ farmer.district }}";
+
+  const defaultLat = 12.9716, defaultLon = 77.5946;
+  const fLat = farmerCoords ? farmerCoords.lat : defaultLat;
+  const fLon = farmerCoords ? farmerCoords.lon : defaultLon;
+
+  // Initialize map centered on farmer's location
+  const map = L.map('recommendMap').setView([fLat, fLon], 8);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  // Farmer marker (green home icon)
+  const farmIcon = L.divIcon({
+    html: '<div style="background:#2e7d32;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;box-shadow:0 3px 10px rgba(0,0,0,.3);border:3px solid #fff;"><i class="bi bi-house-fill"></i></div>',
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  });
+
+  L.marker([fLat, fLon], {icon: farmIcon})
+    .addTo(map)
+    .bindPopup(`<strong>🌾 Your Farm</strong><br>${farmerDistrict}`);
+
+  const bounds = L.latLngBounds([fLat, fLon]);
+
+  recommendations.forEach(function(rec, index) {
+    if (!rec.lat || !rec.lon) return;
+
+    // Color by profit rank: Rank 1 is green, others are amber, negative profit is red
+    let color = '#e65100'; // Amber/Orange
+    let rankLabel = `Rank #${index + 1}`;
+    if (index === 0) {
+      color = '#1b5e20'; // Dark Green for Best
+      rankLabel = '⭐ Best Pick';
+    } else if (rec.net_profit < 0) {
+      color = '#c62828'; // Dark Red for negative
+    }
+
+    const mandiIcon = L.divIcon({
+      html: `<div style="background:${color};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.25);border:2px solid #fff;font-weight:700;">${index + 1}</div>`,
+      className: '',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+
+    const marker = L.marker([rec.lat, rec.lon], {icon: mandiIcon}).addTo(map);
+    bounds.extend([rec.lat, rec.lon]);
+
+    // Popup content with Net Profit and details
+    const popupContent = `
+      <div class="map-popup-title">${rec.mandi} (${rankLabel})</div>
+      <div class="map-popup-subtitle">${rec.location}</div>
+      <div style="font-weight:700;color:${rec.net_profit >= 0 ? '#2e7d32' : '#c62828'};margin-top:4px;">
+        Net Profit: ₹${rec.net_profit.toLocaleString()}
+      </div>
+      <div class="map-popup-stat">
+        <span>Price: ₹${rec.mandi_price.toLocaleString()}/t</span>
+        <span>Dist: ${rec.distance_km} km</span>
+      </div>
+      ${rec.is_disrupted ? '<div style="color:#d32f2f;font-weight:bold;font-size:0.75rem;margin-top:4px;">⚠️ Route Disrupted!</div>' : ''}
+      <div style="margin-top:8px;">
+        <button onclick="drawMandiRoute(${fLat},${fLon},${rec.lat},${rec.lon},'${rec.mandi}',${rec.is_disrupted})"
+                style="background:#2e7d32;color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;width:100%;">
+          <i class="bi bi-signpost-2"></i> Draw Route
+        </button>
+      </div>
+    `;
+    marker.bindPopup(popupContent);
+
+    // Draw the route automatically for the best pick on page load
+    if (index === 0) {
+      setTimeout(() => {
+        drawMandiRoute(fLat, fLon, rec.lat, rec.lon, rec.mandi, rec.is_disrupted);
+      }, 300);
+    }
+  });
+
+  // Fit map boundaries to include all markers
+  if (recommendations.length > 0) {
+    map.fitBounds(bounds, {padding: [50, 50]});
+  }
+
+  let activeRouteLayer = null;
+
+  window.drawMandiRoute = function(fromLat, fromLon, toLat, toLon, mandiName, isDisrupted) {
+    if (activeRouteLayer) map.removeLayer(activeRouteLayer);
+
+    fetch(`/api/osrm_route?from_lat=${fromLat}&from_lon=${fromLon}&to_lat=${toLat}&to_lon=${toLon}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.geometry && data.geometry.length > 1) {
+          const routeColor = isDisrupted ? '#d32f2f' : '#2e7d32';
+          const routeDash = isDisrupted ? '6, 6' : '';
+          
+          activeRouteLayer = L.polyline(data.geometry, {
+            color: routeColor, weight: 5, opacity: 0.85,
+            dashArray: routeDash
+          }).addTo(map);
+
+          map.fitBounds(activeRouteLayer.getBounds(), {padding: [50, 50]});
+
+          // Draw a midpoint label showing routing stats
+          const mid = data.geometry[Math.floor(data.geometry.length / 2)];
+          L.popup({closeButton: true, className: 'route-label-popup'})
+            .setLatLng(mid)
+            .setContent(`<div class="route-label" style="border-color:${routeColor};color:${routeColor};">
+              ${isDisrupted ? '⚠️ Disrupted: ' : ''}${data.distance_km} km · ${data.duration_min} min to ${mandiName}
+            </div>`)
+            .openOn(map);
+        }
+      });
+  };
+})();
+</script>
 {% endblock %}

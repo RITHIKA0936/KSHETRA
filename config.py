@@ -48,6 +48,28 @@ class Config:
     OSRM_BASE_URL = "http://router.project-osrm.org/route/v1/driving"
 
     # -------------------------
+    # Nominatim Geocoding (OSM — FREE, no key)
+    # Docs: https://nominatim.org/release-docs/develop/api/Search/
+    # -------------------------
+    NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org"
+
+    # -------------------------
+    # Overpass API (OSM POI queries — FREE, no key)
+    # Docs: https://wiki.openstreetmap.org/wiki/Overpass_API
+    # -------------------------
+    OVERPASS_BASE_URL = "https://overpass-api.de/api/interpreter"
+    OVERPASS_SEARCH_RADIUS_M = 15000   # 15 km radius for nearby facilities
+
+    # -------------------------
+    # OpenWeatherMap (FREE tier — 1000 calls/day)
+    # Docs: https://openweathermap.org/api
+    # Sign up: https://home.openweathermap.org/users/sign_up
+    # Replace with your real API key after sign-up
+    # -------------------------
+    OPENWEATHERMAP_API_KEY = "DUMMY_OWM_KEY_REPLACE_ME"
+    OPENWEATHERMAP_BASE_URL = "https://api.openweathermap.org/data/2.5"
+
+    # -------------------------
     # Transport Cost Rates (₹ per km per ton)
     # -------------------------
     TRANSPORT_RATES = {
@@ -58,7 +80,7 @@ class Config:
     }
 
     # -------------------------
-    # City Coordinates for Weather API
+    # City Coordinates for Weather & Map APIs
     # -------------------------
     CITY_COORDS = {
         "Bengaluru":      {"lat": 12.9716, "lon": 77.5946},
@@ -69,6 +91,19 @@ class Config:
         "Hassan":         {"lat": 13.0033, "lon": 76.1004},
         "Chikkaballapur": {"lat": 13.4355, "lon": 77.7290},
         "Ramanagara":     {"lat": 12.7164, "lon": 77.2793},
+    }
+
+    # -------------------------
+    # Mandi-specific Coordinates (for map markers)
+    # -------------------------
+    MANDI_COORDS = {
+        "Kolar Mandi":         {"lat": 13.1370, "lon": 78.1300},
+        "KR Market":           {"lat": 12.9620, "lon": 77.5770},
+        "Yeshwanthpur Market": {"lat": 13.0220, "lon": 77.5440},
+        "Mysuru Mandi":        {"lat": 12.3051, "lon": 76.6551},
+        "Tumakuru Mandi":      {"lat": 13.3400, "lon": 77.1190},
+        "Mandya Mandi":        {"lat": 12.5230, "lon": 76.8970},
+        "Hassan Mandi":        {"lat": 13.0050, "lon": 76.1020},
     }
 
     # -------------------------

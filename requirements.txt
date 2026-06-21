@@ -4,3 +4,6 @@ pulp
 matplotlib
 openpyxl
 streamlit
+flask
+flask_sqlalchemy
+requests

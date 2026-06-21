@@ -132,6 +132,14 @@
       </a>
       {% endif %}
     </div>
+
+    <!-- ===== ALERTS MAP ===== -->
+    <div class="map-section">
+      <div class="map-section-title">
+        <i class="bi bi-map-fill" style="color:var(--red);"></i> Disrupted Routes Map
+      </div>
+      <div id="disruptionMap" class="kshetra-map kshetra-map-lg" style="margin-bottom:40px;"></div>
+    </div>
     {% endif %}
 
     <!-- ===== FLAG DISRUPTION FORM (mandi/admin only) ===== -->
@@ -333,4 +341,99 @@
 }
 </style>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // If active disruptions list is empty, the map container won't render
+  const mapEl = document.getElementById('disruptionMap');
+  if (!mapEl) return;
+
+  // Initialize map centered on Karnataka region
+  const map = L.map('disruptionMap').setView([13.8000, 76.5000], 7.5);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  // Warning icon for disrupted routes
+  const warnIcon = L.divIcon({
+    html: '<div style="background:#d32f2f;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;box-shadow:0 2px 6px rgba(0,0,0,.2);"><i class="bi bi-exclamation-triangle-fill"></i></div>',
+    className: '',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+
+  const bounds = L.latLngBounds();
+  let hasPoints = false;
+
+  fetch('/api/map_data')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.disruptions || data.disruptions.length === 0) return;
+
+      const promises = data.disruptions.map(function(d) {
+        if (!d.from_lat || !d.from_lon || !d.to_lat || !d.to_lon) return Promise.resolve();
+
+        bounds.extend([d.from_lat, d.from_lon]);
+        bounds.extend([d.to_lat, d.to_lon]);
+        hasPoints = true;
+
+        // Fetch OSRM route for accurate visual road segment representation
+        return fetch(`/api/osrm_route?from_lat=${d.from_lat}&from_lon=${d.from_lon}&to_lat=${d.to_lat}&to_lon=${d.to_lon}`)
+          .then(res => res.json())
+          .then(routeData => {
+            if (routeData.geometry && routeData.geometry.length > 1) {
+              const polyline = L.polyline(routeData.geometry, {
+                color: '#d32f2f',
+                weight: 5,
+                opacity: 0.85,
+                dashArray: '8, 8'
+              }).addTo(map);
+
+              polyline.bindPopup(`<strong>🚨 Disrupted Route: ${d.route}</strong><br><span style="color:#c62828;font-weight:600;">Type: ${d.type}</span><br>${d.description || ''}`);
+              
+              // Warning marker at route midpoint
+              const midIdx = Math.floor(routeData.geometry.length / 2);
+              const mid = routeData.geometry[midIdx];
+              L.marker(mid, {icon: warnIcon}).addTo(map)
+                .bindPopup(`<strong>🚨 Disrupted Route: ${d.route}</strong><br><span style="color:#c62828;font-weight:600;">Type: ${d.type}</span><br>${d.description || ''}`);
+            } else {
+              // Fallback to straight line
+              const polyline = L.polyline([[d.from_lat, d.from_lon], [d.to_lat, d.to_lon]], {
+                color: '#d32f2f',
+                weight: 5,
+                opacity: 0.85,
+                dashArray: '8, 8'
+              }).addTo(map);
+              
+              polyline.bindPopup(`<strong>🚨 Disrupted Route: ${d.route}</strong><br><span style="color:#c62828;font-weight:600;">Type: ${d.type}</span><br>${d.description || ''}`);
+              
+              const mid = [(d.from_lat + d.to_lat) / 2, (d.from_lon + d.to_lon) / 2];
+              L.marker(mid, {icon: warnIcon}).addTo(map)
+                .bindPopup(`<strong>🚨 Disrupted Route: ${d.route}</strong><br><span style="color:#c62828;font-weight:600;">Type: ${d.type}</span><br>${d.description || ''}`);
+            }
+          })
+          .catch(() => {
+            // Fallback straight line on error
+            const polyline = L.polyline([[d.from_lat, d.from_lon], [d.to_lat, d.to_lon]], {
+              color: '#d32f2f',
+              weight: 5,
+              opacity: 0.85,
+              dashArray: '8, 8'
+            }).addTo(map);
+            polyline.bindPopup(`<strong>🚨 Disrupted Route: ${d.route}</strong><br>Type: ${d.type}`);
+          });
+      });
+
+      Promise.all(promises).then(() => {
+        if (hasPoints) {
+          map.fitBounds(bounds, {padding: [50, 50]});
+        }
+      });
+    });
+})();
+</script>
 {% endblock %}

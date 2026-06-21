@@ -306,6 +306,262 @@ def send_sms_notification(mobile, message):
 
 
 # =============================================================
+# ===  NOMINATIM GEOCODING (OSM)  ============================
+# =============================================================
+
+def geocode_location(query, limit=1):
+    """
+    Convert a village/city name to lat/lon using OSM Nominatim.
+    Free, no API key. Rate limit: 1 req/sec.
+    Returns: {"lat": float, "lon": float, "display_name": str} or None.
+
+    Nominatim docs: https://nominatim.org/release-docs/develop/api/Search/
+    """
+    try:
+        params = {
+            "q":      f"{query}, Karnataka, India",
+            "format": "json",
+            "limit":  limit,
+        }
+        headers = {"User-Agent": "KSHETRA-AgriApp/1.0"}
+        resp = requests.get(
+            f"{Config.NOMINATIM_BASE_URL}/search",
+            params=params, headers=headers, timeout=5
+        )
+        results = resp.json()
+        if results:
+            r = results[0]
+            return {
+                "lat":          float(r["lat"]),
+                "lon":          float(r["lon"]),
+                "display_name": r.get("display_name", query)
+            }
+    except Exception:
+        pass
+
+    # Fallback to config coords
+    coords = Config.CITY_COORDS.get(query)
+    if coords:
+        return {"lat": coords["lat"], "lon": coords["lon"], "display_name": query}
+    return None
+
+
+# =============================================================
+# ===  OSRM ROUTE POLYLINE  ==================================
+# =============================================================
+
+def get_osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
+    """
+    Fetch a driving route from OSRM (free, no key).
+    Returns: {
+        "distance_km": float,
+        "duration_min": float,
+        "geometry": [[lat, lon], ...]   # decoded polyline for Leaflet
+    }
+    Falls back to straight line if OSRM is unreachable.
+
+    OSRM docs: http://project-osrm.org/docs/v5.24.0/api/
+    """
+    try:
+        url = f"{Config.OSRM_BASE_URL}/{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
+        params = {
+            "overview":    "full",
+            "geometries":  "geojson",
+            "steps":       "false"
+        }
+        resp = requests.get(url, params=params, timeout=8)
+        data = resp.json()
+
+        if data.get("code") == "Ok" and data.get("routes"):
+            route = data["routes"][0]
+            coords = route["geometry"]["coordinates"]
+            # GeoJSON is [lon, lat] → Leaflet needs [lat, lon]
+            polyline = [[c[1], c[0]] for c in coords]
+            return {
+                "distance_km":  round(route["distance"] / 1000, 1),
+                "duration_min": round(route["duration"] / 60, 1),
+                "geometry":     polyline
+            }
+    except Exception:
+        pass
+
+    # Fallback: straight line
+    return {
+        "distance_km":  0,
+        "duration_min": 0,
+        "geometry":     [[origin_lat, origin_lon], [dest_lat, dest_lon]]
+    }
+
+
+# =============================================================
+# ===  OVERPASS API — NEARBY FACILITIES  ======================
+# =============================================================
+
+def get_nearby_facilities(lat, lon, radius_m=None):
+    """
+    Find nearby agricultural facilities using OSM Overpass API.
+    Searches for: cold storage, fuel stations, warehouses, marketplaces.
+    Returns a list of {"name", "type", "lat", "lon"} dicts.
+
+    Overpass docs: https://wiki.openstreetmap.org/wiki/Overpass_API
+    """
+    if radius_m is None:
+        radius_m = Config.OVERPASS_SEARCH_RADIUS_M
+
+    # Overpass QL: search for relevant POI types
+    query = f"""
+    [out:json][timeout:10];
+    (
+      node["landuse"="cold_storage"](around:{radius_m},{lat},{lon});
+      node["amenity"="fuel"](around:{radius_m},{lat},{lon});
+      node["building"="warehouse"](around:{radius_m},{lat},{lon});
+      node["amenity"="marketplace"](around:{radius_m},{lat},{lon});
+      node["shop"="agrarian"](around:{radius_m},{lat},{lon});
+      node["industrial"="warehouse"](around:{radius_m},{lat},{lon});
+    );
+    out body 30;
+    """
+
+    FACILITY_TYPE_MAP = {
+        "cold_storage": "Cold Storage",
+        "fuel":         "Petrol Pump",
+        "warehouse":    "Warehouse",
+        "marketplace":  "Marketplace",
+        "agrarian":     "Agri Shop",
+    }
+
+    try:
+        resp = requests.post(
+            Config.OVERPASS_BASE_URL,
+            data={"data": query},
+            timeout=12
+        )
+        data = resp.json()
+        facilities = []
+
+        for el in data.get("elements", []):
+            tags = el.get("tags", {})
+            # Determine type
+            ftype = "Other"
+            for key_tag in ["landuse", "amenity", "building", "shop", "industrial"]:
+                val = tags.get(key_tag, "")
+                if val in FACILITY_TYPE_MAP:
+                    ftype = FACILITY_TYPE_MAP[val]
+                    break
+
+            facilities.append({
+                "name": tags.get("name", f"{ftype}"),
+                "type": ftype,
+                "lat":  el.get("lat", lat),
+                "lon":  el.get("lon", lon),
+            })
+
+        return facilities
+
+    except Exception:
+        return []
+
+
+# =============================================================
+# ===  OPENWEATHERMAP — ENHANCED WEATHER  ====================
+# =============================================================
+
+def get_openweather_forecast(city):
+    """
+    Fetch current weather + 5-day forecast from OpenWeatherMap.
+    Free tier: 1000 calls/day with API key.
+    Falls back to Open-Meteo if OWM key is dummy/invalid.
+
+    Returns: {
+        "rain_probability": 0-100,
+        "max_temp": float,
+        "description": str,
+        "icon": str,          # OWM icon code (e.g. "10d")
+        "humidity": int,
+        "wind_speed": float,  # m/s
+        "alerts": [str],      # severe weather alerts
+        "source": "openweathermap" | "open-meteo"
+    }
+    """
+    coords = Config.CITY_COORDS.get(city)
+    if not coords:
+        return get_weather_forecast(city)
+
+    api_key = Config.OPENWEATHERMAP_API_KEY
+
+    # If key is dummy, fall back to Open-Meteo
+    if "DUMMY" in api_key or "REPLACE" in api_key:
+        result = get_weather_forecast(city)
+        result["source"] = "open-meteo"
+        result["icon"]   = "02d"
+        result["humidity"]   = 65
+        result["wind_speed"] = 3.5
+        result["alerts"]     = []
+        return result
+
+    try:
+        # Current weather
+        params = {
+            "lat":   coords["lat"],
+            "lon":   coords["lon"],
+            "appid": api_key,
+            "units": "metric"
+        }
+        resp = requests.get(
+            f"{Config.OPENWEATHERMAP_BASE_URL}/weather",
+            params=params, timeout=5
+        )
+        current = resp.json()
+
+        # 5-day forecast for rain probability
+        resp2 = requests.get(
+            f"{Config.OPENWEATHERMAP_BASE_URL}/forecast",
+            params=params, timeout=5
+        )
+        forecast = resp2.json()
+
+        # Extract max rain probability from forecast
+        rain_prob = 0
+        max_temp = current.get("main", {}).get("temp_max", 30)
+        for entry in forecast.get("list", [])[:8]:  # next 24h
+            pop = entry.get("pop", 0) * 100  # probability of precipitation
+            rain_prob = max(rain_prob, pop)
+            t = entry.get("main", {}).get("temp_max", 0)
+            max_temp = max(max_temp, t)
+
+        # Weather alerts (if available via OneCall — needs paid tier)
+        alerts = []
+
+        icon = "02d"
+        weather_list = current.get("weather", [])
+        if weather_list:
+            icon = weather_list[0].get("icon", "02d")
+
+        desc = current.get("weather", [{}])[0].get("description", "clear sky").title()
+
+        return {
+            "rain_probability": int(rain_prob),
+            "max_temp":         round(max_temp, 1),
+            "description":      f"{desc}. Max {max_temp}°C, Rain {int(rain_prob)}%",
+            "icon":             icon,
+            "humidity":         current.get("main", {}).get("humidity", 50),
+            "wind_speed":       current.get("wind", {}).get("speed", 0),
+            "alerts":           alerts,
+            "source":           "openweathermap"
+        }
+
+    except Exception:
+        # Fall back to Open-Meteo
+        result = get_weather_forecast(city)
+        result["source"]     = "open-meteo"
+        result["icon"]       = "02d"
+        result["humidity"]   = 65
+        result["wind_speed"] = 3.5
+        result["alerts"]     = []
+        return result
+
+
+# =============================================================
 # ===  MANDI RECOMMENDATION ALGORITHM  =======================
 # =============================================================
 
@@ -376,8 +632,14 @@ def recommend_mandis(farmer, crop):
         if is_disrupted:
             net_profit *= 0.80
 
+        # Get coordinates for the mandi
+        coords = Config.MANDI_COORDS.get(agent.mandi) or Config.CITY_COORDS.get(mandi_location)
+        if not coords:
+            coords = geocode_location(mandi_location) or {"lat": 12.9716, "lon": 77.5946}
+
         results.append({
-            "agent":          agent,
+            "agent_name":     agent.name,
+            "agent_id":       agent.id,
             "mandi":          agent.mandi,
             "location":       mandi_location,
             "mandi_price":    mandi_price,
@@ -387,6 +649,8 @@ def recommend_mandis(farmer, crop):
             "rain_prob":      rain_prob,
             "weather_desc":   weather["description"],
             "is_disrupted":   is_disrupted,
+            "lat":            coords.get("lat"),
+            "lon":            coords.get("lon"),
         })
 
     results.sort(key=lambda x: x["net_profit"], reverse=True)
@@ -509,6 +773,23 @@ def farmer_dashboard():
 
     # Active tab from query param (default: platform)
     active_tab  = request.args.get("tab", "platform")
+    max_price_id = db.session.query(db.func.max(PriceEntry.id)).scalar() or 0
+
+    # Calculate coordinates for map
+    farmer_coords = geocode_location(farmer.village) or geocode_location(farmer.district)
+    
+    mandi_coords = []
+    for agent in agents:
+        coords = Config.MANDI_COORDS.get(agent.mandi) or Config.CITY_COORDS.get(agent.location)
+        if not coords:
+            coords = geocode_location(agent.location)
+        if coords:
+            mandi_coords.append({
+                "name": agent.mandi,
+                "location": agent.location,
+                "lat": coords["lat"],
+                "lon": coords["lon"]
+            })
 
     return render_template(
         "farmer_dashboard.html",
@@ -522,6 +803,9 @@ def farmer_dashboard():
         price_entries=price_entries,
         active_tab=active_tab,
         today=date.today().strftime("%Y-%m-%d"),
+        farmer_coords=farmer_coords,
+        mandi_coords=mandi_coords,
+        max_price_id=max_price_id
     )
 
 
@@ -615,13 +899,15 @@ def recommend_mandi():
         crop = crops[0]   # default to first crop
 
     recommendations = recommend_mandis(farmer, crop)
+    farmer_coords = geocode_location(farmer.village) or geocode_location(farmer.district)
 
     return render_template(
         "recommend.html",
         farmer=farmer,
         crop=crop,
         crops=crops,
-        recommendations=recommendations
+        recommendations=recommendations,
+        farmer_coords=farmer_coords
     )
 
 
@@ -1429,9 +1715,14 @@ def api_transport_cost():
     dist      = get_distance(from_city, to_city)
     breakdown = calculate_transport_cost(dist, qty, mode)
 
+    from_coords = Config.CITY_COORDS.get(from_city, {"lat": 12.9716, "lon": 77.5946})
+    to_coords   = Config.CITY_COORDS.get(to_city, {"lat": 12.9716, "lon": 77.5946})
+
     return jsonify({
         "from_city":     from_city,
         "to_city":       to_city,
+        "from_coords":   from_coords,
+        "to_coords":     to_coords,
         "distance_km":   dist,
         "quantity_tons": qty,
         "mode":          mode,
@@ -1448,12 +1739,173 @@ def api_transport_cost():
 @app.route("/api/weather")
 def api_weather():
     """
-    JSON API: Get weather forecast for a city.
+    JSON API: Get weather forecast for a city (enhanced with OpenWeatherMap).
     Query param: city
-    Returns: { rain_probability, max_temp, description }
+    Returns: { rain_probability, max_temp, description, icon, humidity, wind_speed, alerts, source }
     """
     city = request.args.get("city", "Bengaluru")
-    return jsonify(get_weather_forecast(city))
+    return jsonify(get_openweather_forecast(city))
+
+
+@app.route("/api/new_prices")
+def api_new_prices():
+    """
+    JSON API: Polling endpoint for real-time price alerts on the farmer dashboard.
+    Query param: after_id
+    """
+    after_id = int(request.args.get("after_id", 0))
+    # Get all new price entries
+    new_entries = PriceEntry.query.filter(PriceEntry.id > after_id).order_by(PriceEntry.id.asc()).all()
+    
+    results = []
+    for p in new_entries:
+        agent = MandiAgent.query.get(p.mandi_agent_id)
+        agent_name = agent.name if agent else "A retailer"
+        mandi_name = agent.mandi if agent else ""
+        results.append({
+            "id": p.id,
+            "crop_name": p.crop_name,
+            "price": p.price,
+            "agent": f"{agent_name} ({mandi_name})",
+            "quantity": p.quantity_required
+        })
+        
+    return jsonify({"prices": results})
+
+
+# =============================================================
+# ===  NEW API ROUTES — MAPS & GEOLOCATION  ===================
+# =============================================================
+
+@app.route("/api/map_data")
+def api_map_data():
+    """
+    JSON API: Return all coordinates for Leaflet map rendering.
+    If farmer is logged in, includes farmer's location + mandi markers.
+    If a crop_id is provided, includes OSRM routes to each mandi.
+    Query params: crop_id (optional)
+    """
+    data = {
+        "cities":     [],
+        "mandis":     [],
+        "farmer":     None,
+        "routes":     [],
+        "disruptions": []
+    }
+
+    # All city markers
+    for city, coords in Config.CITY_COORDS.items():
+        data["cities"].append({
+            "name": city,
+            "lat":  coords["lat"],
+            "lon":  coords["lon"],
+        })
+
+    # All mandi markers
+    for mandi, coords in Config.MANDI_COORDS.items():
+        data["mandis"].append({
+            "name": mandi,
+            "lat":  coords["lat"],
+            "lon":  coords["lon"],
+        })
+
+    # Farmer location (if logged in)
+    if session.get("role") == "farmer":
+        farmer = Farmer.query.get(session.get("farmer_id"))
+        if farmer:
+            farmer_coords = Config.CITY_COORDS.get(farmer.district)
+            if farmer_coords:
+                data["farmer"] = {
+                    "name":     farmer.name,
+                    "district": farmer.district,
+                    "village":  farmer.village,
+                    "lat":      farmer_coords["lat"],
+                    "lon":      farmer_coords["lon"],
+                }
+
+    # Active disruptions for map overlay
+    disruptions = Disruption.query.filter_by(active_flag=True).all()
+    for d in disruptions:
+        # Parse route robustly (handles '→', '->', '-') to get coordinates
+        route_clean = d.route.replace("->", "→").replace("-", "→").replace("→", "→")
+        parts = route_clean.split("→")
+        if len(parts) == 2:
+            city_a = parts[0].strip()
+            city_b = parts[1].strip()
+            coords_a = Config.CITY_COORDS.get(city_a)
+            coords_b = Config.CITY_COORDS.get(city_b)
+            if coords_a and coords_b:
+                data["disruptions"].append({
+                    "route":       d.route,
+                    "type":        d.type,
+                    "description": d.description,
+                    "from_lat":    coords_a["lat"],
+                    "from_lon":    coords_a["lon"],
+                    "to_lat":      coords_b["lat"],
+                    "to_lon":      coords_b["lon"],
+                })
+
+    return jsonify(data)
+
+
+@app.route("/api/osrm_route")
+def api_osrm_route():
+    """
+    JSON API: Get OSRM driving route between two points.
+    Query params: from_city, to_city  OR  from_lat, from_lon, to_lat, to_lon
+    Returns: { distance_km, duration_min, geometry: [[lat,lon],...] }
+    """
+    # Support both city names and raw coordinates
+    from_city = request.args.get("from_city")
+    to_city   = request.args.get("to_city")
+
+    if from_city and to_city:
+        coords_a = Config.CITY_COORDS.get(from_city)
+        coords_b = Config.CITY_COORDS.get(to_city)
+        if not coords_a or not coords_b:
+            return jsonify({"error": "Unknown city"}), 400
+        origin_lat, origin_lon = coords_a["lat"], coords_a["lon"]
+        dest_lat,   dest_lon   = coords_b["lat"], coords_b["lon"]
+    else:
+        origin_lat = float(request.args.get("from_lat", 0))
+        origin_lon = float(request.args.get("from_lon", 0))
+        dest_lat   = float(request.args.get("to_lat", 0))
+        dest_lon   = float(request.args.get("to_lon", 0))
+
+    result = get_osrm_route(origin_lon, origin_lat, dest_lon, dest_lat)
+    return jsonify(result)
+
+
+@app.route("/api/nearby_facilities")
+def api_nearby_facilities():
+    """
+    JSON API: Find nearby cold storages, petrol pumps, warehouses using Overpass.
+    Query params: lat, lon, radius (optional, metres)
+    Returns: [{ name, type, lat, lon }, ...]
+    """
+    lat    = float(request.args.get("lat", 13.1368))
+    lon    = float(request.args.get("lon", 78.1294))
+    radius = int(request.args.get("radius", Config.OVERPASS_SEARCH_RADIUS_M))
+
+    facilities = get_nearby_facilities(lat, lon, radius)
+    return jsonify(facilities)
+
+
+@app.route("/api/geocode")
+def api_geocode():
+    """
+    JSON API: Geocode a place name to lat/lon using Nominatim.
+    Query param: q (place name)
+    Returns: { lat, lon, display_name }
+    """
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "Missing query parameter 'q'"}), 400
+
+    result = geocode_location(query)
+    if result:
+        return jsonify(result)
+    return jsonify({"error": f"Could not geocode '{query}'"}), 404
 
 
 # =============================================================

@@ -104,12 +104,15 @@
   </div>
 </div>
 
+<script id="mandi-series-data" type="application/json">
+  {{ mandi_series | tojson }}
+</script>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
-var mandiSeries = {{ mandi_series | tojson }};
+var mandiSeries = JSON.parse(document.getElementById('mandi-series-data').textContent);
 
 var COLORS = [
   '#2e7d32','#f57f17','#1565c0','#c62828','#6a1b9a',

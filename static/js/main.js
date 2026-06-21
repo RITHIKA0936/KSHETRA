@@ -107,6 +107,15 @@ function calcTransportCost() {
         '</div>' +
 
         '</div>';
+
+      // Show route on map and scroll up
+      if (window.showRoute && d.from_coords && d.to_coords) {
+        window.showRoute(d.from_coords.lat, d.from_coords.lon, d.to_coords.lat, d.to_coords.lon, d.to_city);
+        var mapEl = document.getElementById('farmMap');
+        if (mapEl) {
+          mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
     })
     .catch(function () {
       out.innerHTML = '<p class="text-red mt-8" style="font-size:.85rem">Could not fetch — check connection.</p>';

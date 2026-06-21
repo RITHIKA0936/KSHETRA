@@ -18,21 +18,27 @@ import random
 # ------------------------------------------------------------------
 
 FARMERS_SEED = [
-    {"name": "Raju Patil",    "mobile": "9876543210", "village": "Malur",     "district": "Kolar",    "username": "raju",    "password": "raju123",  "cost_of_production": 5000},
-    {"name": "Lakshmi Devi",  "mobile": "9845001122", "village": "Sidlaghatta","district": "Kolar",    "username": "lakshmi", "password": "lak123",   "cost_of_production": 6000},
-    {"name": "Venkatesh GK",  "mobile": "9731234567", "village": "Tumkur",    "district": "Tumakuru", "username": "venkat",  "password": "ven123",   "cost_of_production": 4500},
-    {"name": "Sunita Reddy",  "mobile": "9632587410", "village": "Mandya",    "district": "Mandya",   "username": "sunita",  "password": "sun123",   "cost_of_production": 7000},
-    {"name": "Mahesh Kumar",  "mobile": "8765432109", "village": "Hassan",    "district": "Hassan",   "username": "mahesh",  "password": "mah123",   "cost_of_production": 5500},
+    # ── Demo accounts (always available) ──────────────────────────────
+    {"name": "Demo Farmer",   "mobile": "9000000001", "village": "Malur",     "district": "Kolar",    "username": "demofarmer",  "password": "1234",     "cost_of_production": 5000},
+    # ── Sample farmers ─────────────────────────────────────────────────
+    {"name": "Raju Patil",    "mobile": "9876543210", "village": "Malur",     "district": "Kolar",    "username": "raju",        "password": "raju123",  "cost_of_production": 5000},
+    {"name": "Lakshmi Devi",  "mobile": "9845001122", "village": "Sidlaghatta","district": "Kolar",    "username": "lakshmi",    "password": "lak123",   "cost_of_production": 6000},
+    {"name": "Venkatesh GK",  "mobile": "9731234567", "village": "Tumkur",    "district": "Tumakuru", "username": "venkat",      "password": "ven123",   "cost_of_production": 4500},
+    {"name": "Sunita Reddy",  "mobile": "9632587410", "village": "Mandya",    "district": "Mandya",   "username": "sunita",      "password": "sun123",   "cost_of_production": 7000},
+    {"name": "Mahesh Kumar",  "mobile": "8765432109", "village": "Hassan",    "district": "Hassan",   "username": "mahesh",      "password": "mah123",   "cost_of_production": 5500},
 ]
 
 AGENTS_SEED = [
-    {"name": "Ravi Kumar",     "mandi": "Kolar Mandi",           "location": "Kolar",    "contact": "9900112233", "username": "ravi_kolar",  "password": "kolar123"},
-    {"name": "Suman Nair",     "mandi": "KR Market",             "location": "Bengaluru","contact": "9900223344", "username": "suman_kr",    "password": "kr123"},
-    {"name": "Arjun Gowda",    "mandi": "Yeshwanthpur Market",   "location": "Bengaluru","contact": "9900334455", "username": "arjun_yesh",  "password": "yesh123"},
-    {"name": "Kavitha Bai",    "mandi": "Mysuru Mandi",          "location": "Mysuru",   "contact": "9900445566", "username": "kavitha_mys", "password": "mys123"},
-    {"name": "Prakash Rao",    "mandi": "Tumakuru Mandi",        "location": "Tumakuru", "contact": "9900556677", "username": "prakash_tum", "password": "tum123"},
-    {"name": "Bhavani Shetty", "mandi": "Mandya Mandi",          "location": "Mandya",   "contact": "9900667788", "username": "bhavani_mdy", "password": "mdy123"},
-    {"name": "Nagaraj MS",     "mandi": "Hassan Mandi",          "location": "Hassan",   "contact": "9900778899", "username": "nagaraj_hsn", "password": "hsn123"},
+    # ── Demo accounts (always available) ──────────────────────────────
+    {"name": "Demo Retailer", "mandi": "Kolar Mandi", "location": "Kolar",    "contact": "9000000002", "username": "demoretailer", "password": "1234"},
+    # ── Sample agents ──────────────────────────────────────────────────
+    {"name": "Ravi Kumar",     "mandi": "Kolar Mandi",           "location": "Kolar",    "contact": "9900112233", "username": "ravi_kolar",   "password": "kolar123"},
+    {"name": "Suman Nair",     "mandi": "KR Market",             "location": "Bengaluru","contact": "9900223344", "username": "suman_kr",     "password": "kr123"},
+    {"name": "Arjun Gowda",    "mandi": "Yeshwanthpur Market",   "location": "Bengaluru","contact": "9900334455", "username": "arjun_yesh",   "password": "yesh123"},
+    {"name": "Kavitha Bai",    "mandi": "Mysuru Mandi",          "location": "Mysuru",   "contact": "9900445566", "username": "kavitha_mys",  "password": "mys123"},
+    {"name": "Prakash Rao",    "mandi": "Tumakuru Mandi",        "location": "Tumakuru", "contact": "9900556677", "username": "prakash_tum",  "password": "tum123"},
+    {"name": "Bhavani Shetty", "mandi": "Mandya Mandi",          "location": "Mandya",   "contact": "9900667788", "username": "bhavani_mdy",  "password": "mdy123"},
+    {"name": "Nagaraj MS",     "mandi": "Hassan Mandi",          "location": "Hassan",   "contact": "9900778899", "username": "nagaraj_hsn",  "password": "hsn123"},
 ]
 
 CROPS_SEED = [
@@ -106,14 +112,59 @@ DISRUPTIONS_SEED = [
 # ------------------------------------------------------------------
 # Seeder function
 # ------------------------------------------------------------------
+def ensure_demo_accounts():
+    """Always upsert the two demo accounts regardless of seed state."""
+    # Demo farmer
+    df = Farmer.query.filter_by(username="demofarmer").first()
+    if not df:
+        df = Farmer(
+            name="Demo Farmer", mobile="9000000001",
+            village="Malur", district="Kolar",
+            username="demofarmer", password="1234",
+            cost_of_production=5000
+        )
+        db.session.add(df)
+        db.session.commit()
+        print("  [OK] demofarmer account created")
+
+        # Give demo farmer some crops so the dashboard is populated
+        for crop_name, qty, shelf in [("Tomato", 8.0, 5), ("Carrot", 3.0, 20)]:
+            db.session.add(Crop(name=crop_name, quantity=qty,
+                                shelf_life_days=shelf, farmer_id=df.id))
+        db.session.commit()
+        print("  [OK] demo farmer crops added")
+    else:
+        # Ensure password is correct even if account existed before
+        df.password = "1234"
+        db.session.commit()
+
+    # Demo retailer (mandi agent)
+    dr = MandiAgent.query.filter_by(username="demoretailer").first()
+    if not dr:
+        dr = MandiAgent(
+            name="Demo Retailer", mandi="Kolar Mandi",
+            location="Kolar", contact="9000000002",
+            username="demoretailer", password="1234"
+        )
+        db.session.add(dr)
+        db.session.commit()
+        print("  [OK] demoretailer account created")
+    else:
+        dr.password = "1234"
+        db.session.commit()
+
+
 def seed():
     with app.app_context():
         # Create tables if they don't exist
         db.create_all()
 
-        # Skip if data already exists
-        if Farmer.query.count() > 0:
-            print("Database already seeded. Skipping.")
+        # Always ensure demo accounts exist (even if DB was already seeded)
+        ensure_demo_accounts()
+
+        # Skip full seed if data already exists
+        if Farmer.query.count() > 1:   # >1 because demofarmer was just added
+            print("Database already seeded. Skipping full seed.")
             return
 
         print("Seeding database...")
@@ -125,7 +176,8 @@ def seed():
             db.session.add(farmer)
             farmers.append(farmer)
         db.session.commit()
-        print(f"  ✓ {len(farmers)} farmers added")
+        print(f"  [OK] {len(farmers)} farmers added")
+        db.session.commit()
 
         # ---- Mandi Agents ----
         agents = []
@@ -134,7 +186,7 @@ def seed():
             db.session.add(agent)
             agents.append(agent)
         db.session.commit()
-        print(f"  ✓ {len(agents)} mandi agents added")
+        print(f"  [OK] {len(agents)} mandi agents added")
 
         # ---- Crops ----
         crops = []
@@ -148,7 +200,7 @@ def seed():
             db.session.add(crop)
             crops.append(crop)
         db.session.commit()
-        print(f"  ✓ {len(crops)} crops added")
+        print(f"  [OK] {len(crops)} crops added")
 
         # ---- Price Entries (30 days of history) ----
         price_count = 0
@@ -157,7 +209,7 @@ def seed():
                 key = (agent.mandi, crop.name)
                 if key in BASE_PRICES:
                     base = BASE_PRICES[key]
-                    # Generate daily prices for last 30 days with ±5% variation
+                    # Generate daily prices for last 30 days with +/-5% variation
                     for days_ago in range(30, 0, -1):
                         price_date = date.today() - timedelta(days=days_ago)
                         variation  = random.uniform(-0.05, 0.05)
@@ -173,14 +225,14 @@ def seed():
                         price_count += 1
 
         db.session.commit()
-        print(f"  ✓ {price_count} price entries added (30 days history)")
+        print(f"  [OK] {price_count} price entries added (30 days history)")
 
         # ---- Disruptions ----
         for d in DISRUPTIONS_SEED:
             disruption = Disruption(**d)
             db.session.add(disruption)
         db.session.commit()
-        print(f"  ✓ {len(DISRUPTIONS_SEED)} disruptions added")
+        print(f"  [OK] {len(DISRUPTIONS_SEED)} disruptions added")
 
         # ---- Sample Pre-Bookings ----
         bookings = [
@@ -197,14 +249,14 @@ def seed():
         for b in bookings:
             db.session.add(b)
         db.session.commit()
-        print(f"  ✓ {len(bookings)} pre-bookings added")
+        print(f"  [OK] {len(bookings)} pre-bookings added")
 
-        print("\n✅ Database seeding complete!")
+        print("\nDatabase seeding complete!")
         print("\nDemo Login Credentials:")
-        print("  Farmer  → username: raju    | password: raju123")
-        print("  Farmer  → username: lakshmi | password: lak123")
-        print("  Agent   → username: ravi_kolar | password: kolar123")
-        print("  Agent   → username: suman_kr   | password: kr123")
+        print("  ┌─────────────────────────────────────────────┐")
+        print("  │  Farmer portal  →  demofarmer  / 1234       │")
+        print("  │  Retailer portal→  demoretailer / 1234      │")
+        print("  └─────────────────────────────────────────────┘")
 
 
 if __name__ == "__main__":
